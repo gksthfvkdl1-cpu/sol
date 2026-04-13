@@ -7,6 +7,9 @@
  * 2) 공략 등록: { "action": "append", "defense1"…"comment" }
  *    → strategies 시트에 appendRow (win/lose는 0, 0 등으로 채움)
  *
+ * 브라우저 CORS: 본문은 JSON이지만 Content-Type은 text/plain 으로 보냅니다.
+ * doPost 에서는 그대로 JSON.parse(e.postData.contents) 하면 됩니다.
+ *
  * ```js
  * function doPost(e) {
  *   const body = JSON.parse(e.postData.contents);
@@ -77,12 +80,26 @@ async function postJson(
   body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(webAppUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  })
+  let res: Response
+  try {
+    // application/json 은 CORS preflight(OPTIONS)를 유발해 Apps Script에서
+    // "Failed to fetch"로 끊기는 경우가 많음. text/plain 은 simple request.
+    res = await fetch(webAppUrl, {
+      method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+      signal,
+    })
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw new Error(
+        '서버에 연결하지 못했습니다. Apps Script 웹 앱을 "배포"했는지, 실행 권한·액세스가 "모든 사용자(익명 포함)"인지 확인하세요.',
+      )
+    }
+    throw err instanceof Error ? err : new Error('네트워크 오류')
+  }
 
   const text = await res.text()
   if (!res.ok) {
