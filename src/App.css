@@ -22,6 +22,10 @@
   gap: 1.5rem;
 }
 
+.main--gate-ref {
+  max-width: 20.5rem;
+}
+
 .page-header--gate {
   text-align: center;
 }

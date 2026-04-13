@@ -36,9 +36,17 @@ export function AutocompleteField({
 
   const suggestions = useMemo(() => {
     const q = value.trim().toLowerCase()
+    const unique = new Map<string, string>()
+    for (const raw of options) {
+      const v = raw.trim()
+      if (!v) continue
+      const key = v.toLowerCase()
+      if (!unique.has(key)) unique.set(key, v)
+    }
+    const deduped = Array.from(unique.values())
     const filtered = q
-      ? options.filter((o) => o.toLowerCase().includes(q))
-      : options
+      ? deduped.filter((o) => o.toLowerCase().includes(q))
+      : []
     return filtered.slice(0, maxSuggestions)
   }, [value, options, maxSuggestions])
 

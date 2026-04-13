@@ -63,6 +63,18 @@ function lastId() {
   return r ? Number(r.id) : 0
 }
 
+function issueSession(user) {
+  const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES })
+  return {
+    token,
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name || user.username,
+    },
+  }
+}
+
 function initDb() {
   run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -92,6 +104,28 @@ function initDb() {
   run(
     'CREATE INDEX IF NOT EXISTS idx_matchups_def ON matchups(defense1, defense2, defense3);',
   )
+  run(`
+    CREATE TABLE IF NOT EXISTS matchup_edit_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      matchup_id INTEGER NOT NULL,
+      requester_id INTEGER NOT NULL,
+      skill_order TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (matchup_id) REFERENCES matchups(id),
+      FOREIGN KEY (requester_id) REFERENCES users(id)
+    );
+  `)
+  run(`
+    CREATE TABLE IF NOT EXISTS signup_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
 
   const { c } = getOne('SELECT COUNT(*) AS c FROM users') || { c: 0 }
   if (Number(c) === 0) {
@@ -139,6 +173,13 @@ function initDb() {
       ],
     )
   }
+
+  const adminHash = bcrypt.hashSync('gksthf', 10)
+  run(`INSERT OR IGNORE INTO users (username, password_hash, display_name) VALUES (?,?,?)`, [
+    'admin',
+    adminHash,
+    '관리자',
+  ])
 }
 
 initDb()
@@ -163,6 +204,134 @@ function authMiddleware(req, res, next) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  const row = getOne('SELECT username FROM users WHERE id = ?', [req.userId])
+  if (!row || row.username !== 'admin') {
+    return res.status(403).json({ error: '관리자만 접근할 수 있습니다.' })
+  }
+  next()
+}
+
+app.post('/api/auth/signup-request', (req, res) => {
+  const username = String(req.body?.username ?? '').trim()
+  const password = String(req.body?.password ?? '')
+  const displayName = String(req.body?.displayName ?? '').trim()
+  if (!username || !password || !displayName) {
+    return res.status(400).json({ error: '아이디, 비밀번호, 닉네임을 입력하세요.' })
+  }
+  if (username.length < 2) {
+    return res.status(400).json({ error: '아이디는 2자 이상이어야 합니다.' })
+  }
+  if (password.length < 4) {
+    return res.status(400).json({ error: '비밀번호는 4자 이상이어야 합니다.' })
+  }
+  if (username.toLowerCase() === 'admin') {
+    return res.status(400).json({ error: '사용할 수 없는 아이디입니다.' })
+  }
+  const takenUser = getOne('SELECT id FROM users WHERE username = ?', [username])
+  if (takenUser) {
+    return res.status(409).json({ error: '이미 가입된 아이디입니다.' })
+  }
+  const pending = getOne('SELECT id FROM signup_requests WHERE username = ?', [username])
+  if (pending) {
+    return res.status(409).json({ error: '이미 가입 신청이 접수된 아이디입니다.' })
+  }
+  const password_hash = bcrypt.hashSync(password, 10)
+  run('INSERT INTO signup_requests (username, password_hash, display_name) VALUES (?,?,?)', [
+    username,
+    password_hash,
+    displayName,
+  ])
+  res.status(201).json({ ok: true })
+})
+
+app.get('/api/admin/signup-requests', authMiddleware, requireAdmin, (_req, res) => {
+  const rows = getAll(
+    'SELECT id, username, display_name, created_at FROM signup_requests ORDER BY id ASC',
+  )
+  res.json(rows)
+})
+
+app.get('/api/admin/edit-requests', authMiddleware, requireAdmin, (_req, res) => {
+  const rows = getAll(
+    `SELECT
+      r.id,
+      r.matchup_id,
+      r.skill_order,
+      r.notes,
+      r.created_at,
+      u.username AS requester_username,
+      u.display_name AS requester_display_name,
+      m.defense1,
+      m.defense2,
+      m.defense3
+     FROM matchup_edit_requests r
+     JOIN users u ON u.id = r.requester_id
+     JOIN matchups m ON m.id = r.matchup_id
+     WHERE r.status = 'pending'
+     ORDER BY r.id ASC`,
+  )
+  res.json(rows)
+})
+
+app.post('/api/admin/signup-requests/:id/approve', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id)
+  const row = getOne('SELECT * FROM signup_requests WHERE id = ?', [id])
+  if (!row) {
+    return res.status(404).json({ error: '없는 신청입니다.' })
+  }
+  const exists = getOne('SELECT id FROM users WHERE username = ?', [row.username])
+  if (exists) {
+    run('DELETE FROM signup_requests WHERE id = ?', [id])
+    return res.status(409).json({ error: '이미 가입된 아이디입니다. 신청만 삭제했습니다.' })
+  }
+  run('INSERT INTO users (username, password_hash, display_name) VALUES (?,?,?)', [
+    row.username,
+    row.password_hash,
+    row.display_name,
+  ])
+  run('DELETE FROM signup_requests WHERE id = ?', [id])
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/signup-requests/:id/reject', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id)
+  const row = getOne('SELECT id FROM signup_requests WHERE id = ?', [id])
+  if (!row) {
+    return res.status(404).json({ error: '없는 신청입니다.' })
+  }
+  run('DELETE FROM signup_requests WHERE id = ?', [id])
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/edit-requests/:id/approve', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id)
+  const row = getOne(
+    'SELECT id, matchup_id, skill_order, notes, status FROM matchup_edit_requests WHERE id = ?',
+    [id],
+  )
+  if (!row || String(row.status) !== 'pending') {
+    return res.status(404).json({ error: '없는 수정 신청입니다.' })
+  }
+  run('UPDATE matchups SET skill_order = ?, notes = ? WHERE id = ?', [
+    String(row.skill_order || '').trim(),
+    String(row.notes || '').trim(),
+    Number(row.matchup_id),
+  ])
+  run('UPDATE matchup_edit_requests SET status = ? WHERE id = ?', ['approved', id])
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/edit-requests/:id/reject', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id)
+  const row = getOne('SELECT id, status FROM matchup_edit_requests WHERE id = ?', [id])
+  if (!row || String(row.status) !== 'pending') {
+    return res.status(404).json({ error: '없는 수정 신청입니다.' })
+  }
+  run('UPDATE matchup_edit_requests SET status = ? WHERE id = ?', ['rejected', id])
+  res.json({ ok: true })
+})
+
 app.post('/api/auth/login', (req, res) => {
   const username = String(req.body?.username ?? '').trim()
   const password = String(req.body?.password ?? '')
@@ -177,15 +346,7 @@ app.post('/api/auth/login', (req, res) => {
       .status(401)
       .json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' })
   }
-  const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES })
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name || user.username,
-    },
-  })
+  res.json(issueSession(user))
 })
 
 app.get('/api/auth/me', authMiddleware, (req, res) => {
@@ -203,8 +364,9 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 app.get('/api/meta/heroes', (_req, res) => {
   const rows = getAll(
     `SELECT DISTINCT name FROM (
-        SELECT defense1 AS name FROM matchups UNION SELECT defense2 FROM matchups UNION SELECT defense3 FROM matchups
-        UNION SELECT attack1 FROM matchups UNION SELECT attack2 FROM matchups UNION SELECT attack3 FROM matchups
+        SELECT defense1 AS name FROM matchups
+        UNION SELECT defense2 FROM matchups
+        UNION SELECT defense3 FROM matchups
       ) WHERE TRIM(name) != '' ORDER BY name COLLATE NOCASE`,
   )
   res.json(rows.map((r) => r.name))
@@ -290,6 +452,41 @@ app.post('/api/matchups', authMiddleware, (req, res) => {
     [mid],
   )
   res.status(201).json(row)
+})
+
+app.post('/api/matchups/:id/edit-request', authMiddleware, (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: '유효하지 않은 공략 ID입니다.' })
+  }
+  const target = getOne('SELECT id FROM matchups WHERE id = ?', [id])
+  if (!target) {
+    return res.status(404).json({ error: '없는 공략입니다.' })
+  }
+
+  const skill_order = String(req.body?.skill_order ?? '').trim()
+  const notes = String(req.body?.notes ?? '').trim()
+  run(
+    `INSERT INTO matchup_edit_requests (
+      matchup_id, requester_id, skill_order, notes, status
+    ) VALUES (?,?,?,?, 'pending')`,
+    [id, req.userId, skill_order, notes],
+  )
+  res.status(201).json({ ok: true })
+})
+
+app.delete('/api/matchups/:id', authMiddleware, requireAdmin, (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: '유효하지 않은 공략 ID입니다.' })
+  }
+  const row = getOne('SELECT id FROM matchups WHERE id = ?', [id])
+  if (!row) {
+    return res.status(404).json({ error: '없는 공략입니다.' })
+  }
+  run('DELETE FROM matchup_edit_requests WHERE matchup_id = ?', [id])
+  run('DELETE FROM matchups WHERE id = ?', [id])
+  res.json({ ok: true })
 })
 
 app.post('/api/matchups/:id/vote', (req, res) => {

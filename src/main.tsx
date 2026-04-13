@@ -1,7 +1,14 @@
 import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
+
+function viteBasename(): string | undefined {
+  const raw = import.meta.env.BASE_URL ?? '/'
+  if (raw === '/') return undefined
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw
+}
 
 class RootErrorBoundary extends Component<
   { children: ReactNode },
@@ -50,7 +57,9 @@ if (!rootEl) {
 createRoot(rootEl).render(
   <StrictMode>
     <RootErrorBoundary>
-      <App />
+      <BrowserRouter basename={viteBasename()}>
+        <App />
+      </BrowserRouter>
     </RootErrorBoundary>
   </StrictMode>,
 )
