@@ -1,0 +1,57 @@
+# GitHub Pages: https://gksthfvkdl1-cpu.github.io/sol/
+# 저장소: https://github.com/gksthfvkdl1-cpu/sol
+#
+# 로컬에서 cusor/seven 폴더만 sol 저장소에 올릴 때:
+#   → GitHub 저장소 "최상위"에 package.json, src/, .github/ 등이 보이게
+#     (sol/seven/package.json 처럼 한 단계 더 들어가면 이 워크플로는 실패합니다)
+#
+# Settings → Pages → Source: GitHub Actions
+# Secrets: VITE_OPENSHEET_URL, VITE_APPS_SCRIPT_WEBAPP_URL
+# (다른 저장소/경로면 Repository variables의 VITE_BASE_PATH로 덮어쓰기)
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install and build
+        env:
+          VITE_OPENSHEET_URL: ${{ secrets.VITE_OPENSHEET_URL }}
+          VITE_APPS_SCRIPT_WEBAPP_URL: ${{ secrets.VITE_APPS_SCRIPT_WEBAPP_URL }}
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/sol/' }}
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
