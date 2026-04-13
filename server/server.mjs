@@ -180,6 +180,11 @@ function initDb() {
     adminHash,
     '관리자',
   ])
+  run('UPDATE users SET password_hash = ?, display_name = ? WHERE username = ?', [
+    adminHash,
+    '관리자',
+    'admin',
+  ])
 }
 
 initDb()

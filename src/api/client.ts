@@ -31,13 +31,20 @@ export async function apiJson<T>(
     }
   }
   if (!res.ok) {
-    const msg =
+    const rawMsg =
       typeof data === 'object' &&
       data &&
       'error' in data &&
       typeof (data as { error: unknown }).error === 'string'
         ? (data as { error: string }).error
         : `요청 실패 (${res.status})`
+    const looksLikeHtml =
+      rawMsg.includes('<html') || rawMsg.includes('<!doctype html') || rawMsg.includes('<head>')
+    const missingApiOnDeploy =
+      looksLikeHtml && res.status === 405 && path.startsWith('/api/')
+    const msg = missingApiOnDeploy
+      ? '배포 API 서버가 연결되지 않았습니다. 관리자에게 VITE_API_URL(백엔드 주소) 설정을 요청하세요.'
+      : rawMsg
     throw new Error(msg)
   }
   return data as T
