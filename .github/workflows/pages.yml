@@ -14,6 +14,7 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,6 +35,19 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
+      - name: 필수 Secrets 확인 (없으면 빌드 전에 실패)
+        env:
+          VITE_OPENSHEET_URL: ${{ secrets.VITE_OPENSHEET_URL }}
+          VITE_APPS_SCRIPT_WEBAPP_URL: ${{ secrets.VITE_APPS_SCRIPT_WEBAPP_URL }}
+        run: |
+          if [ -z "$VITE_OPENSHEET_URL" ]; then
+            echo "::error::Repository secret VITE_OPENSHEET_URL 이 비어 있습니다. 저장소 Settings → Secrets and variables → Actions 에서 추가하세요."
+            exit 1
+          fi
+          if [ -z "$VITE_APPS_SCRIPT_WEBAPP_URL" ]; then
+            echo "::error::Repository secret VITE_APPS_SCRIPT_WEBAPP_URL 이 비어 있습니다. 동일 위치에서 추가하세요."
+            exit 1
+          fi
       - name: Install and build
         env:
           VITE_OPENSHEET_URL: ${{ secrets.VITE_OPENSHEET_URL }}
