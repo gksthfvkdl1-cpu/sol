@@ -73,7 +73,7 @@ export default function App() {
   const [defense3, setDefense3] = useState('')
 
   const [rows, setRows] = useState<SheetGuideRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -143,11 +143,18 @@ export default function App() {
     clearAuth()
     setAuth(null)
     setLoginError(null)
+    setLoginSubmitting(false)
     setRegisterForm(emptyRegisterForm)
     setRegisterMessage(null)
     setRegisterError(null)
     setRegisterSubmitting(false)
-    setLoginSubmitting(false)
+    setDefense1('')
+    setDefense2('')
+    setDefense3('')
+    setRows([])
+    setFilteredResults([])
+    setError(null)
+    setLoading(false)
   }
 
   const handleRegisterSubmit = async (e: FormEvent) => {
@@ -201,13 +208,18 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!isLoggedIn) {
+      setLoading(false)
+      return
+    }
+
     const url = import.meta.env.VITE_OPENSHEET_URL?.trim()
     const ac = new AbortController()
 
     async function load() {
       if (!url) {
         setError(
-          'VITE_OPENSHEET_URL이 비어 있습니다. 프로젝트 루트에 .env 파일을 만들고 OpenSheet 전체 URL을 설정하세요.',
+          'VITE_OPENSHEET_URL이 비어 있습니다. 로컬은 .env, GitHub Pages는 Actions Secrets를 확인하세요.',
         )
         setRows([])
         setLoading(false)
@@ -233,7 +245,7 @@ export default function App() {
 
     void load()
     return () => ac.abort()
-  }, [reloadKey])
+  }, [isLoggedIn, reloadKey])
 
   useEffect(() => {
     const q1 = defense1.trim()
@@ -248,13 +260,78 @@ export default function App() {
     setReloadKey((k) => k + 1)
   }, [])
 
+  const loginForm = (
+    <section className="card auth-card auth-card--gate" aria-labelledby="login-heading">
+      <h2 id="login-heading" className="card-title">
+        로그인
+      </h2>
+      <form className="auth-form" onSubmit={handleLogin}>
+        <div className="field">
+          <label htmlFor="login-id">ID</label>
+          <input
+            id="login-id"
+            name="username"
+            type="text"
+            className="field-input"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            autoComplete="username"
+            required
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="login-password">비밀번호</label>
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            className="field-input"
+            value={loginPassword}
+            onChange={(e) => setLoginPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+        </div>
+        {loginError && (
+          <p className="form-error" role="alert">
+            {loginError}
+          </p>
+        )}
+        <button
+          type="submit"
+          className="retry-button auth-submit"
+          disabled={loginSubmitting}
+        >
+          {loginSubmitting ? '확인 중…' : '로그인'}
+        </button>
+      </form>
+    </section>
+  )
+
+  if (!isLoggedIn) {
+    return (
+      <div className="app app--gate">
+        <main className="main main--gate">
+          <header className="page-header page-header--gate">
+            <h1 className="title">공략 검색 사이트</h1>
+            <p className="subtitle subtitle--gate">
+              로그인 후 <strong>strategies</strong> 공략 검색·등록을 이용할 수
+              있습니다.
+            </p>
+          </header>
+          {loginForm}
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <main className="main">
         <header className="page-header">
           <div className="header-top">
             <h1 className="title">공략 검색 사이트</h1>
-            {isLoggedIn && auth && (
+            {auth && (
               <div className="session-bar">
                 <span className="session-user">{auth.userId} 로그인 중</span>
                 <button
@@ -268,59 +345,9 @@ export default function App() {
             )}
           </div>
           <p className="subtitle">
-            OpenSheet의 <strong>strategies</strong> 탭 데이터를 불러옵니다. 로그인은
-            Apps Script가 <strong>users</strong> 시트(id·password)와 대조합니다.
-            방어 검색은 includes 부분 일치입니다.
+            OpenSheet <strong>strategies</strong> · 방어 검색은 includes 부분 일치
           </p>
         </header>
-
-        {!isLoggedIn && (
-          <section className="card auth-card" aria-labelledby="login-heading">
-            <h2 id="login-heading" className="card-title">
-              로그인
-            </h2>
-            <form className="auth-form" onSubmit={handleLogin}>
-              <div className="field">
-                <label htmlFor="login-id">ID</label>
-                <input
-                  id="login-id"
-                  name="username"
-                  type="text"
-                  className="field-input"
-                  value={loginId}
-                  onChange={(e) => setLoginId(e.target.value)}
-                  autoComplete="username"
-                  required
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="login-password">비밀번호</label>
-                <input
-                  id="login-password"
-                  name="password"
-                  type="password"
-                  className="field-input"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-              {loginError && (
-                <p className="form-error" role="alert">
-                  {loginError}
-                </p>
-              )}
-              <button
-                type="submit"
-                className="retry-button auth-submit"
-                disabled={loginSubmitting}
-              >
-                {loginSubmitting ? '확인 중…' : '로그인'}
-              </button>
-            </form>
-          </section>
-        )}
 
         <section className="card search-card" aria-labelledby="search-heading">
           <h2 id="search-heading" className="card-title">
@@ -360,8 +387,7 @@ export default function App() {
           </div>
         </section>
 
-        {isLoggedIn && (
-          <section
+        <section
             className="card register-card"
             aria-labelledby="register-heading"
           >
@@ -454,7 +480,6 @@ export default function App() {
               </button>
             </form>
           </section>
-        )}
 
         <section
           className="card results-card"
