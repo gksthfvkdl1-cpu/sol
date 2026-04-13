@@ -1,0 +1,16 @@
+export type MatchupRow = {
+  id: number
+  defense1: string
+  defense2: string
+  defense3: string
+  attack1: string
+  attack2: string
+  attack3: string
+  skill_order: string
+  notes: string
+  win: number
+  lose: number
+  author_id: number
+  author_name?: string
+  author_username?: string
+}

@@ -1,13 +1,6 @@
 # GitHub Pages: https://gksthfvkdl1-cpu.github.io/sol/
-# 저장소: https://github.com/gksthfvkdl1-cpu/sol
-#
-# 로컬에서 cusor/seven 폴더만 sol 저장소에 올릴 때:
-#   → GitHub 저장소 "최상위"에 package.json, src/, .github/ 등이 보이게
-#     (sol/seven/package.json 처럼 한 단계 더 들어가면 이 워크플로는 실패합니다)
-#
-# Settings → Pages → Source: GitHub Actions
-# Secrets: VITE_OPENSHEET_URL, VITE_APPS_SCRIPT_WEBAPP_URL
-# (다른 저장소/경로면 Repository variables의 VITE_BASE_PATH로 덮어쓰기)
+# 프론트만 배포됩니다. SQLite API는 별도 서버(Railway 등)에 두고
+# Secrets → VITE_API_URL 에 백엔드 origin (슬래시 없이) 을 넣으세요.
 
 name: Deploy to GitHub Pages
 
@@ -35,25 +28,14 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: 필수 Secrets 확인 (없으면 빌드 전에 실패)
-        env:
-          VITE_OPENSHEET_URL: ${{ secrets.VITE_OPENSHEET_URL }}
-          VITE_APPS_SCRIPT_WEBAPP_URL: ${{ secrets.VITE_APPS_SCRIPT_WEBAPP_URL }}
-        run: |
-          if [ -z "$VITE_OPENSHEET_URL" ]; then
-            echo "::error::Repository secret VITE_OPENSHEET_URL 이 비어 있습니다. 저장소 Settings → Secrets and variables → Actions 에서 추가하세요."
-            exit 1
-          fi
-          if [ -z "$VITE_APPS_SCRIPT_WEBAPP_URL" ]; then
-            echo "::error::Repository secret VITE_APPS_SCRIPT_WEBAPP_URL 이 비어 있습니다. 동일 위치에서 추가하세요."
-            exit 1
-          fi
       - name: Install and build
         env:
-          VITE_OPENSHEET_URL: ${{ secrets.VITE_OPENSHEET_URL }}
-          VITE_APPS_SCRIPT_WEBAPP_URL: ${{ secrets.VITE_APPS_SCRIPT_WEBAPP_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/sol/' }}
         run: |
+          if [ -z "$VITE_API_URL" ]; then
+            echo "::warning::VITE_API_URL secret 이 비어 있으면 배포 사이트에서 API가 동작하지 않습니다."
+          fi
           npm ci
           npm run build
       - uses: actions/upload-pages-artifact@v3
