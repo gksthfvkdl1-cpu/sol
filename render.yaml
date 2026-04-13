@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: seven-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: /var/data/app.db
+    disk:
+      name: seven-data
+      mountPath: /var/data
+      sizeGB: 1
