@@ -397,6 +397,8 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.85rem;
+  /* 행에서 가장 큰 카드에 맞춰 늘어나지 않게 — 전략 1개만 있을 때 아래 빈 여백 방지 */
+  align-items: start;
 }
 
 @media (max-width: 960px) {
@@ -496,7 +498,6 @@
 
 .guide-match-body {
   padding: 0.65rem 0.85rem 0.75rem;
-  flex: 1;
 }
 
 .guide-skill {
@@ -564,7 +565,6 @@
 }
 
 .guide-match-foot {
-  margin-top: auto;
   padding: 0.45rem 0.85rem;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
