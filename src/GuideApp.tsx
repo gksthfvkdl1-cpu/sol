@@ -84,6 +84,7 @@ type Props = {
 function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
   return {
     id: Number(r.id),
+    matchup_group_id: String(r.matchup_group_id ?? ''),
     defense1: String(r.defense1 ?? ''),
     defense2: String(r.defense2 ?? ''),
     defense3: String(r.defense3 ?? ''),
@@ -100,6 +101,37 @@ function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
     author_username:
       r.author_username != null ? String(r.author_username) : undefined,
   }
+}
+
+type MatchupGroup = {
+  groupId: string
+  /** 카드 헤더 표시용(같은 그룹 내 가장 먼저 등록된 행) */
+  header: MatchupRow
+  strategies: MatchupRow[]
+}
+
+function groupMatchups(rows: MatchupRow[]): MatchupGroup[] {
+  const map = new Map<string, MatchupRow[]>()
+  for (const r of rows) {
+    const gid =
+      r.matchup_group_id.trim() || `fallback-${r.id}`
+    const list = map.get(gid)
+    if (list) list.push(r)
+    else map.set(gid, [r])
+  }
+  const out: MatchupGroup[] = []
+  for (const [groupId, strategies] of map) {
+    strategies.sort((a, b) => a.id - b.id)
+    const header = strategies[0]
+    out.push({ groupId, header, strategies })
+  }
+  out.sort((a, b) => {
+    const ta = a.strategies.reduce((s, x) => s + x.win + x.lose, 0)
+    const tb = b.strategies.reduce((s, x) => s + x.win + x.lose, 0)
+    if (tb !== ta) return tb - ta
+    return a.header.id - b.header.id
+  })
+  return out
 }
 
 export function GuideApp({ session, onLogout }: Props) {
@@ -169,6 +201,8 @@ export function GuideApp({ session, onLogout }: Props) {
   useEffect(() => {
     setProfileName(session.displayName)
   }, [session.displayName])
+
+  const groupedResults = useMemo(() => groupMatchups(results), [results])
 
   const regSkillOptions = useMemo(
     () =>
@@ -681,7 +715,7 @@ export function GuideApp({ session, onLogout }: Props) {
             {searched && !searchLoading && (
               <>
                 <h2 className="guide-results-head">
-                  검색 결과 {results.length}건
+                  검색 결과 {groupedResults.length}건
                 </h2>
                 {results.length === 0 ? (
                   <p className="guide-placeholder" style={{ marginTop: 0 }}>
@@ -689,148 +723,184 @@ export function GuideApp({ session, onLogout }: Props) {
                   </p>
                 ) : (
                   <div className="guide-grid">
-                    {results.map((m) => (
-                      <article key={m.id} className="guide-match-card">
-                        <div className="guide-match-head">
-                          <div className="guide-match-lines">
-                            <div className="guide-line">
-                              <span className="guide-badge-vs">VS</span>
-                              <span>
-                                {m.defense1} / {m.defense2} / {m.defense3}
-                              </span>
-                            </div>
-                            <div className="guide-line">
-                              <span className="guide-badge-atk">ATK</span>
-                              <span>
-                                {m.attack1} / {m.attack2} / {m.attack3}
-                              </span>
-                            </div>
-                            {m.pet.trim() ? (
+                    {groupedResults.map((g) => {
+                      const h = g.header
+                      const sumW = g.strategies.reduce((s, x) => s + x.win, 0)
+                      const sumL = g.strategies.reduce((s, x) => s + x.lose, 0)
+                      return (
+                        <article key={g.groupId} className="guide-match-card">
+                          <div className="guide-match-head">
+                            <div className="guide-match-lines">
                               <div className="guide-line">
-                                <span className="guide-badge-pet">펫</span>
-                                <span>{m.pet}</span>
+                                <span className="guide-badge-vs">VS</span>
+                                <span>
+                                  {h.defense1} / {h.defense2} / {h.defense3}
+                                </span>
                               </div>
-                            ) : null}
-                          </div>
-                          <span className="guide-rate-pill">
-                            승률 {winRatePct(m.win, m.lose)}
-                          </span>
-                        </div>
-                        <div className="guide-match-body">
-                          {editingId === m.id ? (
-                            <>
-                              <div className="field" style={{ marginBottom: '0.5rem' }}>
-                                <label htmlFor={`edit-skill-${m.id}`}>스킬</label>
-                                <input
-                                  id={`edit-skill-${m.id}`}
-                                  className="field-input"
-                                  value={editSkillOrder}
-                                  onChange={(e) => setEditSkillOrder(e.target.value)}
-                                  placeholder="예: 라드1 -> 손오공2"
-                                />
+                              <div className="guide-line">
+                                <span className="guide-badge-atk">ATK</span>
+                                <span>
+                                  {h.attack1} / {h.attack2} / {h.attack3}
+                                </span>
                               </div>
-                              <div className="field">
-                                <label htmlFor={`edit-notes-${m.id}`}>테스트 코멘트</label>
-                                <textarea
-                                  id={`edit-notes-${m.id}`}
-                                  className="guide-textarea"
-                                  value={editNotes}
-                                  onChange={(e) => setEditNotes(e.target.value)}
-                                  placeholder="코멘트 입력"
-                                />
-                              </div>
-                              {editErr && (
-                                <p className="form-error" role="alert">
-                                  {editErr}
-                                </p>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {m.skill_order ? (
-                                <p className="guide-skill">⚡ 스킬: {m.skill_order}</p>
+                              {h.pet.trim() ? (
+                                <div className="guide-line">
+                                  <span className="guide-badge-pet">펫</span>
+                                  <span>{h.pet}</span>
+                                </div>
                               ) : null}
-                              {m.notes ? (
-                                <p className="guide-notes">{m.notes}</p>
-                              ) : (
-                                <p className="guide-notes" style={{ color: '#92400e' }}>
-                                  코멘트 없음
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div className="guide-match-actions">
-                          {editingId === m.id ? (
-                            <>
-                              <button
-                                type="button"
-                                className="guide-btn-ghost"
-                                disabled={editBusy}
-                                onClick={() => void saveEdit(m.id)}
-                              >
-                                {editBusy ? '저장 중…' : '저장'}
-                              </button>
-                              <button
-                                type="button"
-                                className="guide-btn-ghost"
-                                disabled={editBusy}
-                                onClick={cancelEdit}
-                              >
-                                취소
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                className="guide-btn-ghost"
-                                onClick={() => startEdit(m)}
-                              >
-                                수정
-                              </button>
-                              {isAdmin ? (
+                            </div>
+                            <span className="guide-rate-pill">
+                              승률 {winRatePct(sumW, sumL)}
+                            </span>
+                          </div>
+                          {g.strategies.map((m, idx) => (
+                            <div
+                              key={m.id}
+                              className={
+                                idx === 0
+                                  ? 'guide-match-strategy'
+                                  : 'guide-match-strategy guide-match-strategy--follow'
+                              }
+                            >
+                              <div className="guide-match-body">
+                                {editingId === m.id ? (
+                                  <>
+                                    <div
+                                      className="field"
+                                      style={{ marginBottom: '0.5rem' }}
+                                    >
+                                      <label htmlFor={`edit-skill-${m.id}`}>
+                                        스킬
+                                      </label>
+                                      <input
+                                        id={`edit-skill-${m.id}`}
+                                        className="field-input"
+                                        value={editSkillOrder}
+                                        onChange={(e) =>
+                                          setEditSkillOrder(e.target.value)
+                                        }
+                                        placeholder="예: 라드1 -> 손오공2"
+                                      />
+                                    </div>
+                                    <div className="field">
+                                      <label htmlFor={`edit-notes-${m.id}`}>
+                                        테스트 코멘트
+                                      </label>
+                                      <textarea
+                                        id={`edit-notes-${m.id}`}
+                                        className="guide-textarea"
+                                        value={editNotes}
+                                        onChange={(e) =>
+                                          setEditNotes(e.target.value)
+                                        }
+                                        placeholder="코멘트 입력"
+                                      />
+                                    </div>
+                                    {editErr && (
+                                      <p className="form-error" role="alert">
+                                        {editErr}
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {m.skill_order ? (
+                                      <p className="guide-skill">
+                                        ⚡ 스킬: {m.skill_order}
+                                      </p>
+                                    ) : null}
+                                    {m.notes ? (
+                                      <p className="guide-notes">{m.notes}</p>
+                                    ) : (
+                                      <p
+                                        className="guide-notes"
+                                        style={{ color: '#92400e' }}
+                                      >
+                                        코멘트 없음
+                                      </p>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <div className="guide-match-actions">
+                                {editingId === m.id ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="guide-btn-ghost"
+                                      disabled={editBusy}
+                                      onClick={() => void saveEdit(m.id)}
+                                    >
+                                      {editBusy ? '저장 중…' : '저장'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="guide-btn-ghost"
+                                      disabled={editBusy}
+                                      onClick={cancelEdit}
+                                    >
+                                      취소
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="guide-btn-ghost"
+                                      onClick={() => startEdit(m)}
+                                    >
+                                      수정
+                                    </button>
+                                    {isAdmin ? (
+                                      <button
+                                        type="button"
+                                        className="guide-btn-ghost"
+                                        disabled={deleteBusyId === m.id}
+                                        onClick={() =>
+                                          void deleteMatchup(m.id)
+                                        }
+                                      >
+                                        {deleteBusyId === m.id
+                                          ? '삭제 중…'
+                                          : '삭제'}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                )}
+                              </div>
+                              <div className="guide-vote-row">
                                 <button
                                   type="button"
-                                  className="guide-btn-ghost"
-                                  disabled={deleteBusyId === m.id}
-                                  onClick={() => void deleteMatchup(m.id)}
+                                  className="guide-vote-win"
+                                  onClick={() => void onVote(m.id, 'win')}
                                 >
-                                  {deleteBusyId === m.id ? '삭제 중…' : '삭제'}
+                                  👍 승리
                                 </button>
-                              ) : null}
-                            </>
-                          )}
-                        </div>
-                        <div className="guide-vote-row">
-                          <button
-                            type="button"
-                            className="guide-vote-win"
-                            onClick={() => void onVote(m.id, 'win')}
-                          >
-                            👍 승리
-                          </button>
-                          <button
-                            type="button"
-                            className="guide-vote-lose"
-                            onClick={() => void onVote(m.id, 'lose')}
-                          >
-                            👎 패배
-                          </button>
-                        </div>
-                        <footer className="guide-match-foot">
-                          <span>
-                            {m.win}승 {m.lose}패
-                          </span>
-                          <span>
-                            By{' '}
-                            {m.author_name ||
-                              m.author_username ||
-                              `user-${m.author_id.slice(0, 8)}`}
-                          </span>
-                        </footer>
-                      </article>
-                    ))}
+                                <button
+                                  type="button"
+                                  className="guide-vote-lose"
+                                  onClick={() => void onVote(m.id, 'lose')}
+                                >
+                                  👎 패배
+                                </button>
+                              </div>
+                              <footer className="guide-match-foot">
+                                <span>
+                                  {m.win}승 {m.lose}패
+                                </span>
+                                <span>
+                                  By{' '}
+                                  {m.author_name ||
+                                    m.author_username ||
+                                    `user-${m.author_id.slice(0, 8)}`}
+                                </span>
+                              </footer>
+                            </div>
+                          ))}
+                        </article>
+                      )
+                    })}
                   </div>
                 )}
               </>

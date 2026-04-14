@@ -430,6 +430,15 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
+.guide-match-strategy {
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-match-strategy--follow {
+  border-top: 1px solid #e2e8f0;
+}
+
 .guide-match-lines {
   flex: 1;
   min-width: 0;

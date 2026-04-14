@@ -1,5 +1,6 @@
 export type MatchupRow = {
   id: number
+  matchup_group_id: string
   defense1: string
   defense2: string
   defense3: string
