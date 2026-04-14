@@ -1,31 +1,93 @@
 /* 길드전 정답지 스타일 */
+/* 카드·폼은 항상 라이트 톤 — 시스템 다크모드에서도 라벨/입력 대비 유지 */
 .guide-shell {
   min-height: 100vh;
   background: #e8edf3;
   color: #1e293b;
+  --guide-text: #0f172a;
+  --guide-text-soft: #334155;
+  --guide-muted: #64748b;
+  --guide-surface: #ffffff;
+  --guide-input-bg: #f1f5f9;
+  --guide-border: #e2e8f0;
+}
+
+.guide-shell .field label {
+  color: var(--guide-text-soft);
+  font-weight: 600;
+}
+
+.guide-shell .field-input,
+.guide-shell .field-input.ac-input {
+  background: var(--guide-input-bg);
+  color: var(--guide-text);
+  border-color: var(--guide-border);
+}
+
+.guide-shell .field-input::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.guide-shell .field-input:focus {
+  background: #fff;
+  color: var(--guide-text);
+}
+
+/* 모바일: 입력 줄 높이·placeholder 세로 정렬 */
+.guide-shell .ac-field .field-input.ac-input {
+  min-height: 2.75rem;
+  line-height: 1.45;
+  padding: 0.55rem 0.75rem;
+}
+
+.guide-shell .guide-textarea {
+  color: var(--guide-text);
+  background: #fff;
+  border-color: var(--guide-border);
+}
+
+.guide-shell .guide-textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
 }
 
 .guide-nav {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.25rem 0.5rem;
-  padding: 0.65rem 1rem;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.65rem;
   background: #fff;
   border-bottom: 1px solid #d8dee9;
   box-shadow: 0 1px 3px rgb(15 23 42 / 0.06);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.guide-nav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.guide-nav::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 .guide-nav button {
   border: none;
   background: transparent;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.875rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: #64748b;
   cursor: pointer;
   border-radius: 6px;
   transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .guide-nav button:hover {
@@ -45,9 +107,21 @@
   padding: 1.25rem 1rem 2.5rem;
 }
 
+@media (max-width: 640px) {
+  .guide-inner {
+    padding: 0.65rem 0.75rem 1.5rem;
+  }
+}
+
 .guide-brand {
   text-align: center;
   margin-bottom: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .guide-brand {
+    margin-bottom: 0.65rem;
+  }
 }
 
 .guide-brand-icon {
@@ -66,12 +140,26 @@
   object-position: center;
 }
 
+@media (max-width: 640px) {
+  .guide-brand-logo {
+    max-height: 64px;
+    width: min(200px, 75vw);
+    margin-bottom: 0.25rem;
+  }
+}
+
 .guide-brand-title {
   margin: 0;
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #0f172a;
+}
+
+@media (max-width: 640px) {
+  .guide-brand-title {
+    font-size: 1.2rem;
+  }
 }
 
 .guide-user {
@@ -88,6 +176,17 @@
   display: flex;
   justify-content: flex-end;
   margin-bottom: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .guide-top-actions {
+    margin-bottom: 0.35rem;
+  }
+
+  .guide-top-actions .button-secondary {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.8125rem;
+  }
 }
 
 .guide-placeholder {
@@ -107,6 +206,13 @@
   box-shadow: 0 4px 14px rgb(15 23 42 / 0.06);
   padding: 1.15rem 1.25rem 1.35rem;
   margin-bottom: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .guide-card {
+    padding: 0.85rem 0.75rem 1rem;
+    border-radius: 12px;
+  }
 }
 
 .guide-tabs-row {
@@ -148,7 +254,7 @@
   gap: 0.35rem;
   font-size: 0.8rem;
   font-weight: 700;
-  color: #475569;
+  color: #334155;
   margin: 0 0 0.5rem;
   text-transform: none;
 }
@@ -160,9 +266,11 @@
   margin-bottom: 1rem;
 }
 
-@media (max-width: 640px) {
+/* 태블릿 세로·모바일: 3열 대신 1열 (중간 폭에서도 깨짐 방지) */
+@media (max-width: 900px) {
   .guide-d3 {
     grid-template-columns: 1fr;
+    gap: 0.65rem;
   }
 }
 
@@ -175,6 +283,18 @@
 
 .guide-exclude-row .field-input {
   flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .guide-exclude-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .guide-exclude-row .guide-btn-sm {
+    width: 100%;
+  }
 }
 
 .guide-chip-list {
@@ -426,7 +546,7 @@
   gap: 0.65rem;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .guide-register-grid {
     grid-template-columns: 1fr;
   }
