@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AutocompleteField } from './AutocompleteField.tsx'
-import { apiJson } from './api/client.ts'
+import { loadProfile } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
 import type { MatchupRow } from './types/matchup.ts'
 import './App.css'
 import './guide.css'
 import { BrandLogo } from './BrandLogo.tsx'
+import { supabase } from './supabase/client.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
 
-type SignupRequestRow = {
-  id: number
+type PendingProfileRow = {
+  id: string
   username: string
   display_name: string
   created_at: string
@@ -40,8 +41,28 @@ type Props = {
   onLogout: () => void
 }
 
+function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
+  return {
+    id: Number(r.id),
+    defense1: String(r.defense1 ?? ''),
+    defense2: String(r.defense2 ?? ''),
+    defense3: String(r.defense3 ?? ''),
+    attack1: String(r.attack1 ?? ''),
+    attack2: String(r.attack2 ?? ''),
+    attack3: String(r.attack3 ?? ''),
+    skill_order: String(r.skill_order ?? ''),
+    notes: String(r.notes ?? ''),
+    win: Number(r.win ?? 0),
+    lose: Number(r.lose ?? 0),
+    author_id: String(r.author_id ?? ''),
+    author_name: r.author_name != null ? String(r.author_name) : undefined,
+    author_username:
+      r.author_username != null ? String(r.author_username) : undefined,
+  }
+}
+
 export function GuideApp({ session, onLogout }: Props) {
-  const isAdmin = session.username === 'admin'
+  const isAdmin = session.isAdmin
   const [nav, setNav] = useState<NavId>('search')
   const [heroOptions, setHeroOptions] = useState<string[]>([])
 
@@ -79,15 +100,19 @@ export function GuideApp({ session, onLogout }: Props) {
   const [deleteBusyId, setDeleteBusyId] = useState<number | null>(null)
   const [adminMsg, setAdminMsg] = useState<string | null>(null)
 
-  const [signupRequests, setSignupRequests] = useState<SignupRequestRow[]>([])
+  const [signupRequests, setSignupRequests] = useState<PendingProfileRow[]>([])
   const [editRequests, setEditRequests] = useState<EditRequestRow[]>([])
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminErr, setAdminErr] = useState<string | null>(null)
 
   const loadHeroes = useCallback(async () => {
     try {
-      const list = await apiJson<string[]>('/api/meta/heroes')
-      setHeroOptions(list)
+      const { data, error } = await supabase.rpc('hero_names')
+      if (error || !data) {
+        setHeroOptions([])
+        return
+      }
+      setHeroOptions(Array.isArray(data) ? (data as string[]) : [])
     } catch {
       setHeroOptions([])
     }
@@ -100,20 +125,13 @@ export function GuideApp({ session, onLogout }: Props) {
   useEffect(() => {
     let dead = false
     ;(async () => {
-      try {
-        const me = await apiJson<{ id: number; username: string; displayName: string }>(
-          '/api/auth/me',
-          { token: session.token },
-        )
-        if (!dead) setProfileName(me.displayName || me.username)
-      } catch {
-        if (!dead) setProfileName(session.displayName)
-      }
+      const prof = await loadProfile(session.userId)
+      if (!dead && prof) setProfileName(prof.display_name || prof.username)
     })()
     return () => {
       dead = true
     }
-  }, [session.displayName, session.token])
+  }, [session.userId, session.displayName])
 
   const addExclude = () => {
     const t = excludeInput.trim()
@@ -127,16 +145,19 @@ export function GuideApp({ session, onLogout }: Props) {
     setSearchLoading(true)
     setSearched(true)
     try {
-      const rows = await apiJson<MatchupRow[]>('/api/matchups/search', {
-        method: 'POST',
-        body: JSON.stringify({
-          defense1: d1,
-          defense2: d2,
-          defense3: d3,
-          exclude: excludeList,
-        }),
+      const { data, error } = await supabase.rpc('search_matchups', {
+        p_d1: d1.trim() || null,
+        p_d2: d2.trim() || null,
+        p_d3: d3.trim() || null,
+        p_exclude: excludeList.length ? excludeList : [],
       })
-      setResults(rows)
+      if (error) {
+        setResults([])
+        setSearchError(error.message)
+        return
+      }
+      const rows = (data ?? []) as Record<string, unknown>[]
+      setResults(rows.map((r) => mapRpcToMatchup(r)))
     } catch (e) {
       setResults([])
       setSearchError(e instanceof Error ? e.message : '검색 실패')
@@ -152,12 +173,22 @@ export function GuideApp({ session, onLogout }: Props) {
         : window.confirm('정말 패배 하셨습니까? 공부하세요')
     if (!ok) return
     try {
-      const row = await apiJson<MatchupRow>(`/api/matchups/${id}/vote`, {
-        method: 'POST',
-        body: JSON.stringify({ outcome }),
+      const { data, error } = await supabase.rpc('vote_matchup', {
+        p_id: id,
+        p_outcome: outcome,
       })
+      if (error || !data) return
+      const row = data as Record<string, unknown>
       setResults((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, win: row.win, lose: row.lose } : r)),
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                win: Number(row.win ?? r.win),
+                lose: Number(row.lose ?? r.lose),
+              }
+            : r,
+        ),
       )
       void loadHeroes()
     } catch {
@@ -183,14 +214,16 @@ export function GuideApp({ session, onLogout }: Props) {
     setEditErr(null)
     setEditBusy(true)
     try {
-      await apiJson<{ ok: boolean }>(`/api/matchups/${id}/edit-request`, {
-        method: 'POST',
-        token: session.token,
-        body: JSON.stringify({
-          skill_order: editSkillOrder.trim(),
-          notes: editNotes.trim(),
-        }),
+      const { error } = await supabase.from('matchup_edit_requests').insert({
+        matchup_id: id,
+        requester_id: session.userId,
+        skill_order: editSkillOrder.trim(),
+        notes: editNotes.trim(),
       })
+      if (error) {
+        setEditErr(error.message)
+        return
+      }
       cancelEdit()
       window.alert('수정 신청이 접수되었습니다. 관리자 승인 후 반영됩니다.')
     } catch (err) {
@@ -205,22 +238,70 @@ export function GuideApp({ session, onLogout }: Props) {
     setAdminErr(null)
     setAdminLoading(true)
     try {
-      const [signupRows, editRows] = await Promise.all([
-        apiJson<SignupRequestRow[]>('/api/admin/signup-requests', {
-          token: session.token,
-        }),
-        apiJson<EditRequestRow[]>('/api/admin/edit-requests', {
-          token: session.token,
-        }),
+      const { data: pending, error: e1 } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, created_at')
+        .eq('approved', false)
+        .eq('rejected', false)
+        .order('created_at', { ascending: true })
+      if (e1) {
+        setAdminErr(e1.message)
+        setSignupRequests([])
+        setEditRequests([])
+        return
+      }
+      setSignupRequests((pending ?? []) as PendingProfileRow[])
+
+      const { data: edits, error: e2 } = await supabase
+        .from('matchup_edit_requests')
+        .select('id, matchup_id, skill_order, notes, created_at, requester_id')
+        .eq('status', 'pending')
+        .order('id', { ascending: true })
+      if (e2 || !edits?.length) {
+        setEditRequests([])
+        if (e2) setAdminErr(e2.message)
+        return
+      }
+      const mids = [...new Set(edits.map((e) => e.matchup_id as number))]
+      const rids = [...new Set(edits.map((e) => e.requester_id as string))]
+      const [{ data: ms }, { data: ps }] = await Promise.all([
+        supabase
+          .from('matchups')
+          .select('id, defense1, defense2, defense3')
+          .in('id', mids),
+        supabase
+          .from('profiles')
+          .select('id, username, display_name')
+          .in('id', rids),
       ])
-      setSignupRequests(signupRows)
-      setEditRequests(editRows)
+      const mMap = new Map((ms ?? []).map((m) => [m.id, m]))
+      const pMap = new Map((ps ?? []).map((p) => [p.id, p]))
+      setEditRequests(
+        edits.map((e) => {
+          const mid = e.matchup_id as number
+          const rid = e.requester_id as string
+          const mm = mMap.get(mid)
+          const pp = pMap.get(rid)
+          return {
+            id: Number(e.id),
+            matchup_id: mid,
+            skill_order: String(e.skill_order ?? ''),
+            notes: String(e.notes ?? ''),
+            created_at: String(e.created_at ?? ''),
+            requester_username: pp?.username ?? '',
+            requester_display_name: pp?.display_name,
+            defense1: mm?.defense1 ?? '',
+            defense2: mm?.defense2 ?? '',
+            defense3: mm?.defense3 ?? '',
+          }
+        }),
+      )
     } catch (err) {
       setAdminErr(err instanceof Error ? err.message : '관리자 목록 조회 실패')
     } finally {
       setAdminLoading(false)
     }
-  }, [isAdmin, session.token])
+  }, [isAdmin])
 
   useEffect(() => {
     if (nav === 'admin' && isAdmin) {
@@ -255,15 +336,18 @@ export function GuideApp({ session, onLogout }: Props) {
     setRegBusy(false)
   }, [nav])
 
-  const processSignupRequest = async (id: number, action: 'approve' | 'reject') => {
+  const processSignupRequest = async (userId: string, action: 'approve' | 'reject') => {
     setAdminErr(null)
     setAdminMsg(null)
     try {
-      await apiJson<{ ok: boolean }>(`/api/admin/signup-requests/${id}/${action}`, {
-        method: 'POST',
-        token: session.token,
-        body: JSON.stringify({}),
+      const { error } = await supabase.rpc('admin_set_profile_approved', {
+        p_user_id: userId,
+        p_approved: action === 'approve',
       })
+      if (error) {
+        setAdminErr(error.message)
+        return
+      }
       setAdminMsg(action === 'approve' ? '가입 신청을 허용했습니다.' : '가입 신청을 거절했습니다.')
       await loadAdminRequests()
     } catch (err) {
@@ -275,11 +359,13 @@ export function GuideApp({ session, onLogout }: Props) {
     setAdminErr(null)
     setAdminMsg(null)
     try {
-      await apiJson<{ ok: boolean }>(`/api/admin/edit-requests/${id}/${action}`, {
-        method: 'POST',
-        token: session.token,
-        body: JSON.stringify({}),
-      })
+      const fn =
+        action === 'approve' ? 'approve_edit_request' : 'reject_edit_request'
+      const { error } = await supabase.rpc(fn, { p_req_id: id })
+      if (error) {
+        setAdminErr(error.message)
+        return
+      }
       setAdminMsg(
         action === 'approve' ? '수정 신청을 승인해 반영했습니다.' : '수정 신청을 거절했습니다.',
       )
@@ -297,10 +383,11 @@ export function GuideApp({ session, onLogout }: Props) {
     if (!ok) return
     setDeleteBusyId(id)
     try {
-      await apiJson<{ ok: boolean }>(`/api/matchups/${id}`, {
-        method: 'DELETE',
-        token: session.token,
-      })
+      const { error } = await supabase.from('matchups').delete().eq('id', id)
+      if (error) {
+        setSearchError(error.message)
+        return
+      }
       setResults((prev) => prev.filter((x) => x.id !== id))
       setAdminMsg('공략을 삭제했습니다.')
     } catch (err) {
@@ -318,20 +405,21 @@ export function GuideApp({ session, onLogout }: Props) {
     setRegMsg(null)
     setRegBusy(true)
     try {
-      await apiJson('/api/matchups', {
-        method: 'POST',
-        token: session.token,
-        body: JSON.stringify({
-          defense1: reg.defense1.trim(),
-          defense2: reg.defense2.trim(),
-          defense3: reg.defense3.trim(),
-          attack1: reg.attack1.trim(),
-          attack2: reg.attack2.trim(),
-          attack3: reg.attack3.trim(),
-          skill_order: reg.skill_order.trim(),
-          notes: reg.notes.trim(),
-        }),
+      const { error } = await supabase.from('matchups').insert({
+        defense1: reg.defense1.trim(),
+        defense2: reg.defense2.trim(),
+        defense3: reg.defense3.trim(),
+        attack1: reg.attack1.trim(),
+        attack2: reg.attack2.trim(),
+        attack3: reg.attack3.trim(),
+        skill_order: reg.skill_order.trim(),
+        notes: reg.notes.trim(),
+        author_id: session.userId,
       })
+      if (error) {
+        setRegErr(error.message)
+        return
+      }
       setReg({
         defense1: '',
         defense2: '',
@@ -633,7 +721,7 @@ export function GuideApp({ session, onLogout }: Props) {
                             By{' '}
                             {m.author_name ||
                               m.author_username ||
-                              `user${m.author_id}`}
+                              `user-${m.author_id.slice(0, 8)}`}
                           </span>
                         </footer>
                       </article>
@@ -685,7 +773,7 @@ export function GuideApp({ session, onLogout }: Props) {
                   <article key={r.id} className="guide-match-card">
                     <div className="guide-match-body">
                       <p className="guide-skill" style={{ marginBottom: '0.3rem' }}>
-                        신청 ID: {r.id}
+                        사용자 ID: {r.id.slice(0, 8)}…
                       </p>
                       <p className="guide-skill" style={{ marginBottom: '0.3rem' }}>
                         계정: {r.username}

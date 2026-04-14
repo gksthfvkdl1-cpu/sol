@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { apiJson } from './api/client.ts'
-import { saveSession, type UserSession } from './authSession.ts'
+import { buildSession, loadProfile } from './authSession.ts'
+import type { UserSession } from './authSession.ts'
+import { toAuthEmail } from './lib/authEmail.ts'
+import { supabase } from './supabase/client.ts'
 import { BrandLogo } from './BrandLogo.tsx'
 import {
   clearLoginBgForUser,
   readLoginBgForUser,
   writeLoginBgForUser,
 } from './loginBgStorage.ts'
-
-type LoginResponse = {
-  token: string
-  user: { id: number; username: string; displayName: string }
-}
 
 type Props = {
   onLoggedIn: (session: UserSession) => void
@@ -84,16 +81,41 @@ export function LoginGate({ onLoggedIn }: Props) {
     }
     setLoginSubmitting(true)
     try {
-      const res = await apiJson<LoginResponse>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username: id, password: loginPassword }),
+      const email = toAuthEmail(id)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password: loginPassword,
       })
-      const next: UserSession = {
-        token: res.token,
-        username: res.user.username,
-        displayName: res.user.displayName,
+      if (error) {
+        setLoginError(error.message || '로그인 실패')
+        return
       }
-      saveSession(next)
+      if (!data.user) {
+        setLoginError('로그인에 실패했습니다.')
+        return
+      }
+      const prof = await loadProfile(data.user.id)
+      if (!prof) {
+        await supabase.auth.signOut()
+        setLoginError('프로필을 찾을 수 없습니다.')
+        return
+      }
+      if (prof.rejected) {
+        await supabase.auth.signOut()
+        setLoginError('가입이 거절된 계정입니다.')
+        return
+      }
+      if (!prof.approved) {
+        await supabase.auth.signOut()
+        setLoginError('관리자 승인 후 로그인할 수 있습니다.')
+        return
+      }
+      const next = await buildSession(data.user)
+      if (!next) {
+        await supabase.auth.signOut()
+        setLoginError('세션을 만들 수 없습니다.')
+        return
+      }
       onLoggedIn(next)
       setLoginPassword('')
     } catch (err) {

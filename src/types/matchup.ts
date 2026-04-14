@@ -10,7 +10,7 @@ export type MatchupRow = {
   notes: string
   win: number
   lose: number
-  author_id: number
+  author_id: string
   author_name?: string
   author_username?: string
 }

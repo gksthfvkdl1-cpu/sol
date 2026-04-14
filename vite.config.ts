@@ -8,10 +8,5 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     /** 예: https://gksthfvkdl1-cpu.github.io/sol/ → VITE_BASE_PATH=/sol/ */
     base: env.VITE_BASE_PATH?.trim() || '/',
-    server: {
-      proxy: {
-        '/api': { target: 'http://localhost:3001', changeOrigin: true },
-      },
-    },
   }
 })

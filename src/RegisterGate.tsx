@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { apiJson } from './api/client.ts'
+import { toAuthEmail } from './lib/authEmail.ts'
+import { supabase } from './supabase/client.ts'
 import { BrandLogo } from './BrandLogo.tsx'
 import {
   clearLoginBgForUser,
@@ -72,16 +73,28 @@ export function RegisterGate() {
       setRegError('비밀번호는 4자 이상이어야 합니다.')
       return
     }
+    if (id.toLowerCase() === 'admin') {
+      setRegError('사용할 수 없는 아이디입니다.')
+      return
+    }
     setRegSubmitting(true)
     try {
-      await apiJson<{ ok: boolean }>('/api/auth/signup-request', {
-        method: 'POST',
-        body: JSON.stringify({
-          username: id,
-          password: pw,
-          displayName: nick,
-        }),
+      const email = toAuthEmail(id)
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: pw,
+        options: {
+          data: {
+            username: id,
+            display_name: nick,
+          },
+        },
       })
+      if (error) {
+        setRegError(error.message || '신청 실패')
+        return
+      }
+      await supabase.auth.signOut()
       window.alert('가입 신청이 접수되었습니다.\n관리자에게 문의하시오.')
       navigate('/', { replace: true, state: { loginId: id } })
     } catch (err) {

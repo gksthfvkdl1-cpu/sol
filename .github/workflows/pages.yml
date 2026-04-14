@@ -1,5 +1,5 @@
 # GitHub Pages: https://gksthfvkdl1-cpu.github.io/sol/
-# 프론트만 배포됩니다. VITE_API_URL = API 베이스 origin(공개 URL만; 비밀키·DB URL은 넣지 마세요).
+# Supabase: VITE_SUPABASE_URL(공개) + VITE_SUPABASE_ANON_KEY(Actions Secret에만 저장)
 
 name: Deploy to GitHub Pages
 
@@ -29,7 +29,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install and build
         env:
-          VITE_API_URL: https://bvnlwpjjzptarpbwkeqn.supabase.co
+          VITE_SUPABASE_URL: https://bvnlwpjjzptarpbwkeqn.supabase.co
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/sol/' }}
         run: |
           npm ci

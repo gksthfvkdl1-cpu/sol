@@ -1,59 +1,47 @@
-const STORAGE_KEY = 'seven-session'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
+import { supabase } from './supabase/client.ts'
 
 export type UserSession = {
-  token: string
+  userId: string
   username: string
   displayName: string
+  isAdmin: boolean
 }
 
-function jwtExp(token: string): number | null {
-  try {
-    const part = token.split('.')[1]
-    if (!part) return null
-    const json = JSON.parse(
-      atob(part.replace(/-/g, '+').replace(/_/g, '/')),
-    ) as { exp?: number }
-    return typeof json.exp === 'number' ? json.exp : null
-  } catch {
-    return null
+export type ProfileRow = {
+  id: string
+  username: string
+  display_name: string
+  approved: boolean
+  rejected: boolean
+  is_admin: boolean
+}
+
+export async function loadProfile(userId: string): Promise<ProfileRow | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(
+      'id, username, display_name, approved, rejected, is_admin',
+    )
+    .eq('id', userId)
+    .maybeSingle()
+  if (error || !data) return null
+  return data as ProfileRow
+}
+
+export async function buildSession(
+  user: SupabaseUser,
+): Promise<UserSession | null> {
+  const profile = await loadProfile(user.id)
+  if (!profile) return null
+  return {
+    userId: user.id,
+    username: profile.username,
+    displayName: profile.display_name || profile.username,
+    isAdmin: profile.is_admin === true,
   }
 }
 
-export function readSession(): UserSession | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const s = JSON.parse(raw) as Partial<UserSession>
-    if (typeof s.token !== 'string' || !s.token || typeof s.username !== 'string') {
-      return null
-    }
-    const exp = jwtExp(s.token)
-    if (exp != null && Date.now() / 1000 >= exp) {
-      clearSession()
-      return null
-    }
-    return {
-      token: s.token,
-      username: s.username,
-      displayName: typeof s.displayName === 'string' ? s.displayName : s.username,
-    }
-  } catch {
-    return null
-  }
-}
-
-export function saveSession(session: UserSession): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
-  } catch {
-    /* ignore */
-  }
-}
-
-export function clearSession(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    /* ignore */
-  }
+export async function signOutEverywhere(): Promise<void> {
+  await supabase.auth.signOut()
 }
