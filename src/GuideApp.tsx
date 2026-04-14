@@ -194,15 +194,6 @@ function buildContributorRanking(rows: MatchupRow[]): RankItem[] {
   return out
 }
 
-function startOfIsoWeek(d: Date): Date {
-  const x = new Date(d)
-  const day = x.getDay() // 0:Sun, 1:Mon ...
-  const diff = day === 0 ? -6 : 1 - day
-  x.setDate(x.getDate() + diff)
-  x.setHours(0, 0, 0, 0)
-  return x
-}
-
 function addDays(d: Date, days: number): Date {
   const x = new Date(d)
   x.setDate(x.getDate() + days)
@@ -222,19 +213,36 @@ function formatDotDate(isoDate: string): string {
   return `${y}.${m}.${d}`
 }
 
-function buildWeekOptions(count: number): WeekOption[] {
-  const thisMonday = startOfIsoWeek(new Date())
+function startOfYearWeek(d: Date): Date {
+  const jan1 = new Date(d.getFullYear(), 0, 1)
+  jan1.setHours(0, 0, 0, 0)
+  const msPerDay = 24 * 60 * 60 * 1000
+  const dayOfYear = Math.floor((d.getTime() - jan1.getTime()) / msPerDay) + 1
+  const weekOffsetDays = Math.floor((dayOfYear - 1) / 7) * 7
+  return addDays(jan1, weekOffsetDays)
+}
+
+function buildWeekOptionsOfYear(year: number): WeekOption[] {
+  const jan1 = new Date(year, 0, 1)
+  jan1.setHours(0, 0, 0, 0)
+  const dec31 = new Date(year, 11, 31)
+  dec31.setHours(0, 0, 0, 0)
   const out: WeekOption[] = []
-  for (let i = 0; i < count; i += 1) {
-    const start = addDays(thisMonday, -7 * i)
-    const end = addDays(start, 6)
+  let index = 1
+  let start = jan1
+  while (start.getTime() <= dec31.getTime()) {
+    const rawEnd = addDays(start, 6)
+    const end =
+      rawEnd.getTime() <= dec31.getTime() ? rawEnd : new Date(dec31.getTime())
     const startIso = toIsoDate(start)
     const endIso = toIsoDate(end)
     out.push({
-      index: i + 1,
+      index,
       value: startIso,
-      label: `${i + 1}주차 (${formatDotDate(startIso)} ~ ${formatDotDate(endIso)})`,
+      label: `${index}주차 (${formatDotDate(startIso)} ~ ${formatDotDate(endIso)})`,
     })
+    index += 1
+    start = addDays(start, 7)
   }
   return out
 }
@@ -261,9 +269,17 @@ export function GuideApp({ session, onLogout }: Props) {
   const [myRank, setMyRank] = useState<number | null>(null)
   const [rankLoading, setRankLoading] = useState(false)
   const [rankErr, setRankErr] = useState<string | null>(null)
-  const weekOptions = useMemo(() => buildWeekOptions(40), [])
+  const currentYear = new Date().getFullYear()
+  const weekOptions = useMemo(() => buildWeekOptionsOfYear(currentYear), [currentYear])
+  const currentWeekStart = useMemo(
+    () => toIsoDate(startOfYearWeek(new Date())),
+    [],
+  )
   const [statsWeekStart, setStatsWeekStart] = useState<string>(
-    () => weekOptions[0]?.value ?? toIsoDate(startOfIsoWeek(new Date())),
+    () => {
+      if (weekOptions.some((w) => w.value === currentWeekStart)) return currentWeekStart
+      return weekOptions[0]?.value ?? toIsoDate(startOfYearWeek(new Date()))
+    },
   )
 
   const [reg, setReg] = useState({
