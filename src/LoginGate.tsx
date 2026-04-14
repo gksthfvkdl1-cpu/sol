@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { buildSession, isPrivilegedAccount, loadProfile } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
 import {
+  isEmailNotConfirmedAuthError,
+} from './auth/privilegeLogin.ts'
+import {
   friendlyAuthError,
   loginInputToAuthEmail,
 } from './lib/authEmail.ts'
@@ -27,6 +30,9 @@ export function LoginGate({ onLoggedIn }: Props) {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState<string | null>(null)
   const [loginSubmitting, setLoginSubmitting] = useState(false)
+  const [showResendConfirm, setShowResendConfirm] = useState(false)
+  const [resendBusy, setResendBusy] = useState(false)
+  const [resendHint, setResendHint] = useState<string | null>(null)
 
   const [loginBg, setLoginBg] = useState<string | null>(null)
   const bgFileRef = useRef<HTMLInputElement>(null)
@@ -74,9 +80,31 @@ export function LoginGate({ onLoggedIn }: Props) {
     setLoginBg(null)
   }
 
+  const handleResendConfirmEmail = async () => {
+    const email = loginInputToAuthEmail(loginId.trim())
+    if (!email) return
+    setResendBusy(true)
+    setResendHint(null)
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+      if (error) {
+        setResendHint(friendlyAuthError(error.message) || '전송 실패')
+        return
+      }
+      setResendHint('인증 메일을 보냈습니다. 메일함을 확인한 뒤 다시 로그인하세요.')
+    } finally {
+      setResendBusy(false)
+    }
+  }
+
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault()
     setLoginError(null)
+    setShowResendConfirm(false)
+    setResendHint(null)
     const id = loginId.trim()
     if (!id || !loginPassword) {
       setLoginError('아이디와 비밀번호를 입력하세요.')
@@ -94,6 +122,13 @@ export function LoginGate({ onLoggedIn }: Props) {
         password: loginPassword,
       })
       if (error) {
+        const code =
+          typeof error === 'object' && error && 'code' in error
+            ? String((error as { code?: string }).code ?? '')
+            : ''
+        setShowResendConfirm(
+          isEmailNotConfirmedAuthError(error.message, code || undefined),
+        )
         setLoginError(friendlyAuthError(error.message) || '로그인 실패')
         return
       }
@@ -222,6 +257,23 @@ export function LoginGate({ onLoggedIn }: Props) {
                   {loginError}
                 </p>
               )}
+              {showResendConfirm ? (
+                <div className="gate-resend-block">
+                  <button
+                    type="button"
+                    className="gate-bg-pill"
+                    disabled={resendBusy || !loginId.trim()}
+                    onClick={() => void handleResendConfirmEmail()}
+                  >
+                    {resendBusy ? '보내는 중…' : '인증 메일 다시 보내기'}
+                  </button>
+                  {resendHint ? (
+                    <p className="gate-form-hint" role="status">
+                      {resendHint}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </form>
             <div className="gate-btn-stack">
               <button

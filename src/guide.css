@@ -608,6 +608,20 @@
   color: #dc2626;
 }
 
+.gate-form-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: #374151;
+}
+
+.gate-resend-block {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
 .gate-btn-stack {
   display: flex;
   flex-direction: column;

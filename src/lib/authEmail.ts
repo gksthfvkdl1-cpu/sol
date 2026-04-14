@@ -44,7 +44,7 @@ export function friendlyAuthError(message: string): string {
     return '아이디 형식이 올바르지 않습니다.'
   }
   if (/email not confirmed|email address not confirmed/i.test(m)) {
-    return '계정 확인이 필요합니다. 관리자에게 문의하세요.'
+    return '이메일 인증이 완료되지 않아 로그인할 수 없습니다. Supabase 대시보드 → Authentication → Providers → Email에서 Confirm email(이메일 확인)을 끄거나, Authentication → Users에서 해당 사용자를 열어 이메일 확인을 완료한 뒤 다시 시도하세요.'
   }
   if (/user (?:is )?not found|no user found/i.test(m)) {
     return '등록되지 않은 아이디입니다.'
