@@ -109,7 +109,8 @@
     white-space: nowrap;
   }
 
-  .guide-shell .ac-field .field-input.ac-input {
+  .guide-shell .ac-field .field-input.ac-input,
+  .guide-shell .guide-register-skill-row .field-input.ac-input {
     min-height: 2.75rem;
     line-height: 1.45;
     padding: 0.55rem 0.75rem;
@@ -463,6 +464,16 @@
   font-size: 0.65rem;
 }
 
+.guide-badge-pet {
+  flex-shrink: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #4338ca;
+  font-weight: 800;
+  font-size: 0.65rem;
+}
+
 .guide-rate-pill {
   flex-shrink: 0;
   padding: 0.25rem 0.5rem;
@@ -567,31 +578,9 @@
   }
 }
 
-.guide-skill-order-heading {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--guide-text-soft);
-  margin-bottom: 0.25rem;
-}
-
-.guide-skill-order-hint {
-  margin: 0 0 0.45rem;
-  font-size: 0.78rem;
-  color: var(--guide-muted);
-  line-height: 1.35;
-}
-
-.guide-skill-order-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: stretch;
-}
-
-.guide-skill-order-select {
-  flex: 1 1 7rem;
-  min-width: 0;
+.guide-register-pet-row,
+.guide-register-skill-row {
+  margin-top: 0.65rem;
 }
 
 .guide-textarea {
@@ -603,6 +592,10 @@
   font-family: inherit;
   font-size: 0.9rem;
   resize: vertical;
+}
+
+.guide-textarea--register-notes {
+  min-height: 8rem;
 }
 
 .guide-login-title {

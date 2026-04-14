@@ -6,6 +6,7 @@ export type MatchupRow = {
   attack1: string
   attack2: string
   attack3: string
+  pet: string
   skill_order: string
   notes: string
   win: number

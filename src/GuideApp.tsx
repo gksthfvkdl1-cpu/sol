@@ -90,6 +90,7 @@ function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
     attack1: String(r.attack1 ?? ''),
     attack2: String(r.attack2 ?? ''),
     attack3: String(r.attack3 ?? ''),
+    pet: String(r.pet ?? ''),
     skill_order: String(r.skill_order ?? ''),
     notes: String(r.notes ?? ''),
     win: Number(r.win ?? 0),
@@ -124,6 +125,7 @@ export function GuideApp({ session, onLogout }: Props) {
     attack1: '',
     attack2: '',
     attack3: '',
+    pet: '',
     skillSlot1: '',
     skillSlot2: '',
     skillSlot3: '',
@@ -358,6 +360,7 @@ export function GuideApp({ session, onLogout }: Props) {
       attack1: '',
       attack2: '',
       attack3: '',
+      pet: '',
       skillSlot1: '',
       skillSlot2: '',
       skillSlot3: '',
@@ -505,6 +508,7 @@ export function GuideApp({ session, onLogout }: Props) {
         p_attack1: a1,
         p_attack2: a2,
         p_attack3: a3,
+        p_pet: reg.pet.trim(),
         p_skill_order: skillOrderJoined,
         p_notes: reg.notes.trim(),
       })
@@ -519,6 +523,7 @@ export function GuideApp({ session, onLogout }: Props) {
         attack1: '',
         attack2: '',
         attack3: '',
+        pet: '',
         skillSlot1: '',
         skillSlot2: '',
         skillSlot3: '',
@@ -700,6 +705,12 @@ export function GuideApp({ session, onLogout }: Props) {
                                 {m.attack1} / {m.attack2} / {m.attack3}
                               </span>
                             </div>
+                            {m.pet.trim() ? (
+                              <div className="guide-line">
+                                <span className="guide-badge-pet">펫</span>
+                                <span>{m.pet}</span>
+                              </div>
+                            ) : null}
                           </div>
                           <span className="guide-rate-pill">
                             승률 {winRatePct(m.win, m.lose)}
@@ -1003,27 +1014,26 @@ export function GuideApp({ session, onLogout }: Props) {
                   maxSuggestions={5}
                 />
               </div>
-              <div className="field" style={{ marginTop: '0.75rem' }}>
-                <span id="sk-order-label" className="guide-skill-order-heading">
-                  스킬 순서
-                </span>
-                <p className="guide-skill-order-hint">
-                  공격1·2·3에 입력한 이름마다 「이름1」「이름2」 중에서 골라 순서를
-                  정합니다.
-                </p>
-                <div
-                  className="guide-skill-order-row"
-                  role="group"
-                  aria-labelledby="sk-order-label"
-                >
+              <div className="guide-register-grid guide-register-pet-row">
+                <AutocompleteField
+                  id="rpet"
+                  label="펫"
+                  value={reg.pet}
+                  onChange={(v) => setReg((p) => ({ ...p, pet: v }))}
+                  options={heroOptions}
+                  maxSuggestions={5}
+                />
+              </div>
+              <div className="guide-register-grid guide-register-skill-row">
+                <div className="field">
+                  <label htmlFor="sk1">스킬1</label>
                   <select
                     id="sk1"
-                    className="field-input guide-skill-order-select"
+                    className="field-input ac-input"
                     value={reg.skillSlot1}
                     onChange={(e) =>
                       setReg((p) => ({ ...p, skillSlot1: e.target.value }))
                     }
-                    aria-label="스킬 순서 첫 번째"
                   >
                     <option value="">선택</option>
                     {regSkillOptions.map((opt) => (
@@ -1032,14 +1042,16 @@ export function GuideApp({ session, onLogout }: Props) {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="sk2">스킬2</label>
                   <select
                     id="sk2"
-                    className="field-input guide-skill-order-select"
+                    className="field-input ac-input"
                     value={reg.skillSlot2}
                     onChange={(e) =>
                       setReg((p) => ({ ...p, skillSlot2: e.target.value }))
                     }
-                    aria-label="스킬 순서 두 번째"
                   >
                     <option value="">선택</option>
                     {regSkillOptions.map((opt) => (
@@ -1048,14 +1060,16 @@ export function GuideApp({ session, onLogout }: Props) {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="sk3">스킬3</label>
                   <select
                     id="sk3"
-                    className="field-input guide-skill-order-select"
+                    className="field-input ac-input"
                     value={reg.skillSlot3}
                     onChange={(e) =>
                       setReg((p) => ({ ...p, skillSlot3: e.target.value }))
                     }
-                    aria-label="스킬 순서 세 번째"
                   >
                     <option value="">선택</option>
                     {regSkillOptions.map((opt) => (
@@ -1070,7 +1084,7 @@ export function GuideApp({ session, onLogout }: Props) {
                 <label htmlFor="nt">코멘트 / 메모</label>
                 <textarea
                   id="nt"
-                  className="guide-textarea"
+                  className="guide-textarea guide-textarea--register-notes"
                   value={reg.notes}
                   onChange={(e) => setReg((p) => ({ ...p, notes: e.target.value }))}
                   placeholder="팁을 입력하세요"
