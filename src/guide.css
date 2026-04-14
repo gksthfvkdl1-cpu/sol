@@ -567,6 +567,33 @@
   }
 }
 
+.guide-skill-order-heading {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--guide-text-soft);
+  margin-bottom: 0.25rem;
+}
+
+.guide-skill-order-hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: var(--guide-muted);
+  line-height: 1.35;
+}
+
+.guide-skill-order-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.guide-skill-order-select {
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+
 .guide-textarea {
   width: 100%;
   min-height: 4.5rem;

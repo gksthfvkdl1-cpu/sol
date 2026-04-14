@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react'
 import { AutocompleteField } from './AutocompleteField.tsx'
 import { getSessionToken } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
@@ -55,6 +61,21 @@ function winRatePct(win: number, lose: number): string {
   return `${Math.round((Number(win) / t) * 100)}%`
 }
 
+/** 공격1~3 이름 기준으로 스킬 순서 선택지 (각 영웅 × 1, 2) */
+function buildSkillOrderSelectOptions(
+  attack1: string,
+  attack2: string,
+  attack3: string,
+): string[] {
+  const out: string[] = []
+  for (const raw of [attack1, attack2, attack3]) {
+    const name = raw.trim()
+    if (!name) continue
+    out.push(`${name}1`, `${name}2`)
+  }
+  return out
+}
+
 type Props = {
   session: UserSession
   onLogout: () => void
@@ -103,7 +124,9 @@ export function GuideApp({ session, onLogout }: Props) {
     attack1: '',
     attack2: '',
     attack3: '',
-    skill_order: '',
+    skillSlot1: '',
+    skillSlot2: '',
+    skillSlot3: '',
     notes: '',
   })
   const [regMsg, setRegMsg] = useState<string | null>(null)
@@ -144,6 +167,32 @@ export function GuideApp({ session, onLogout }: Props) {
   useEffect(() => {
     setProfileName(session.displayName)
   }, [session.displayName])
+
+  const regSkillOptions = useMemo(
+    () =>
+      buildSkillOrderSelectOptions(
+        reg.attack1,
+        reg.attack2,
+        reg.attack3,
+      ),
+    [reg.attack1, reg.attack2, reg.attack3],
+  )
+
+  useEffect(() => {
+    const allowed = new Set(regSkillOptions)
+    setReg((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const key of ['skillSlot1', 'skillSlot2', 'skillSlot3'] as const) {
+        const v = next[key]
+        if (v && !allowed.has(v)) {
+          next[key] = ''
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [regSkillOptions])
 
   const addExclude = () => {
     const t = excludeInput.trim()
@@ -309,7 +358,9 @@ export function GuideApp({ session, onLogout }: Props) {
       attack1: '',
       attack2: '',
       attack3: '',
-      skill_order: '',
+      skillSlot1: '',
+      skillSlot2: '',
+      skillSlot3: '',
       notes: '',
     })
     setRegErr(null)
@@ -406,6 +457,39 @@ export function GuideApp({ session, onLogout }: Props) {
     if (!ok) return
     setRegErr(null)
     setRegMsg(null)
+
+    const d1 = reg.defense1.trim()
+    const d2 = reg.defense2.trim()
+    const d3 = reg.defense3.trim()
+    const a1 = reg.attack1.trim()
+    const a2 = reg.attack2.trim()
+    const a3 = reg.attack3.trim()
+    if (!d1 || !d2 || !d3 || !a1 || !a2 || !a3) {
+      setRegErr('방어1·방어2·방어3, 공격1·공격2·공격3을 모두 입력하세요.')
+      return
+    }
+    if (!reg.skillSlot1 || !reg.skillSlot2 || !reg.skillSlot3) {
+      setRegErr('스킬 순서 3칸을 모두 선택하세요.')
+      return
+    }
+    const allowed = new Set(
+      buildSkillOrderSelectOptions(reg.attack1, reg.attack2, reg.attack3),
+    )
+    if (
+      !allowed.has(reg.skillSlot1) ||
+      !allowed.has(reg.skillSlot2) ||
+      !allowed.has(reg.skillSlot3)
+    ) {
+      setRegErr('스킬 순서 선택이 올바르지 않습니다. 공격 영웅을 확인하세요.')
+      return
+    }
+
+    const skillOrderJoined = [
+      reg.skillSlot1,
+      reg.skillSlot2,
+      reg.skillSlot3,
+    ].join(' → ')
+
     setRegBusy(true)
     try {
       const tok = getSessionToken()
@@ -415,13 +499,13 @@ export function GuideApp({ session, onLogout }: Props) {
       }
       const { error } = await supabase.rpc('app_insert_matchup', {
         p_session_token: tok,
-        p_defense1: reg.defense1.trim(),
-        p_defense2: reg.defense2.trim(),
-        p_defense3: reg.defense3.trim(),
-        p_attack1: reg.attack1.trim(),
-        p_attack2: reg.attack2.trim(),
-        p_attack3: reg.attack3.trim(),
-        p_skill_order: reg.skill_order.trim(),
+        p_defense1: d1,
+        p_defense2: d2,
+        p_defense3: d3,
+        p_attack1: a1,
+        p_attack2: a2,
+        p_attack3: a3,
+        p_skill_order: skillOrderJoined,
         p_notes: reg.notes.trim(),
       })
       if (error) {
@@ -435,7 +519,9 @@ export function GuideApp({ session, onLogout }: Props) {
         attack1: '',
         attack2: '',
         attack3: '',
-        skill_order: '',
+        skillSlot1: '',
+        skillSlot2: '',
+        skillSlot3: '',
         notes: '',
       })
       setRegMsg('등록되었습니다.')
@@ -918,16 +1004,67 @@ export function GuideApp({ session, onLogout }: Props) {
                 />
               </div>
               <div className="field" style={{ marginTop: '0.75rem' }}>
-                <label htmlFor="sk">스킬 순서</label>
-                <input
-                  id="sk"
-                  className="field-input"
-                  value={reg.skill_order}
-                  onChange={(e) =>
-                    setReg((p) => ({ ...p, skill_order: e.target.value }))
-                  }
-                  placeholder="예: 라드1 -> 손오공2"
-                />
+                <span id="sk-order-label" className="guide-skill-order-heading">
+                  스킬 순서
+                </span>
+                <p className="guide-skill-order-hint">
+                  공격1·2·3에 입력한 이름마다 「이름1」「이름2」 중에서 골라 순서를
+                  정합니다.
+                </p>
+                <div
+                  className="guide-skill-order-row"
+                  role="group"
+                  aria-labelledby="sk-order-label"
+                >
+                  <select
+                    id="sk1"
+                    className="field-input guide-skill-order-select"
+                    value={reg.skillSlot1}
+                    onChange={(e) =>
+                      setReg((p) => ({ ...p, skillSlot1: e.target.value }))
+                    }
+                    aria-label="스킬 순서 첫 번째"
+                  >
+                    <option value="">선택</option>
+                    {regSkillOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    id="sk2"
+                    className="field-input guide-skill-order-select"
+                    value={reg.skillSlot2}
+                    onChange={(e) =>
+                      setReg((p) => ({ ...p, skillSlot2: e.target.value }))
+                    }
+                    aria-label="스킬 순서 두 번째"
+                  >
+                    <option value="">선택</option>
+                    {regSkillOptions.map((opt) => (
+                      <option key={`s2-${opt}`} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    id="sk3"
+                    className="field-input guide-skill-order-select"
+                    value={reg.skillSlot3}
+                    onChange={(e) =>
+                      setReg((p) => ({ ...p, skillSlot3: e.target.value }))
+                    }
+                    aria-label="스킬 순서 세 번째"
+                  >
+                    <option value="">선택</option>
+                    {regSkillOptions.map((opt) => (
+                      <option key={`s3-${opt}`} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="field" style={{ marginTop: '0.65rem' }}>
                 <label htmlFor="nt">코멘트 / 메모</label>

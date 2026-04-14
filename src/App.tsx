@@ -8,6 +8,7 @@ import {
   signOutEverywhere,
   type UserSession,
 } from './authSession.ts'
+import { SESSION_TOKEN_STORAGE_KEY } from './lib/sessionToken.ts'
 import { isAutoAdminConfigured, tryAutoAdminSignIn } from './lib/autoAdminLogin.ts'
 import { GuideApp } from './GuideApp.tsx'
 import { LoginGate } from './LoginGate.tsx'
@@ -46,6 +47,17 @@ export default function App() {
     }
 
     void syncSession()
+  }, [])
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== SESSION_TOKEN_STORAGE_KEY) return
+      if (e.newValue === null && e.oldValue != null) {
+        setSession(null)
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   const handleLogout = async () => {
