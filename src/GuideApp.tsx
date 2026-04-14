@@ -55,6 +55,24 @@ type EditRequestRow = {
   defense3: string
 }
 
+type AttackStatItem = {
+  key: string
+  defenseLabel: string
+  attackLabel: string
+  pet: string
+  win: number
+  lose: number
+  games: number
+  winRate: number
+}
+
+type RankItem = {
+  userId: string
+  name: string
+  count: number
+  rank: number
+}
+
 function winRatePct(win: number, lose: number): string {
   const t = Number(win) + Number(lose)
   if (t <= 0) return '—'
@@ -134,6 +152,67 @@ function groupMatchups(rows: MatchupRow[]): MatchupGroup[] {
   return out
 }
 
+function buildAttackTop10(groups: MatchupGroup[]): AttackStatItem[] {
+  return groups
+    .map((g) => {
+      const win = g.strategies.reduce((s, x) => s + x.win, 0)
+      const lose = g.strategies.reduce((s, x) => s + x.lose, 0)
+      const games = win + lose
+      return {
+        key: g.groupId,
+        defenseLabel: `${g.header.defense1} / ${g.header.defense2} / ${g.header.defense3}`,
+        attackLabel: `${g.header.attack1} / ${g.header.attack2} / ${g.header.attack3}`,
+        pet: g.header.pet,
+        win,
+        lose,
+        games,
+        winRate: games > 0 ? win / games : 0,
+      }
+    })
+    .sort((a, b) => {
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate
+      if (b.games !== a.games) return b.games - a.games
+      return b.win - a.win
+    })
+    .slice(0, 10)
+}
+
+function buildContributorRanking(rows: MatchupRow[]): RankItem[] {
+  const byUser = new Map<string, { name: string; count: number }>()
+  for (const r of rows) {
+    const userId = r.author_id
+    const name =
+      (r.author_name && r.author_name.trim()) ||
+      (r.author_username && r.author_username.trim()) ||
+      `user-${userId.slice(0, 8)}`
+    const prev = byUser.get(userId)
+    if (prev) {
+      prev.count += 1
+      if (!prev.name || prev.name.startsWith('user-')) prev.name = name
+    } else {
+      byUser.set(userId, { name, count: 1 })
+    }
+  }
+  const sorted = Array.from(byUser.entries())
+    .map(([userId, v]) => ({ userId, name: v.name, count: v.count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count
+      return a.name.localeCompare(b.name, 'ko')
+    })
+
+  const out: RankItem[] = []
+  let prevCount: number | null = null
+  let prevRank = 0
+  for (let i = 0; i < sorted.length; i += 1) {
+    const it = sorted[i]
+    const rank = prevCount === it.count ? prevRank : i + 1
+    out.push({ ...it, rank })
+    prevCount = it.count
+    prevRank = rank
+  }
+  return out
+}
+
 export function GuideApp({ session, onLogout }: Props) {
   const isAdmin = session.isAdmin
   const [nav, setNav] = useState<NavId>(() => initialNavForSession(session))
@@ -149,6 +228,13 @@ export function GuideApp({ session, onLogout }: Props) {
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searched, setSearched] = useState(false)
+  const [attackTop10, setAttackTop10] = useState<AttackStatItem[]>([])
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsErr, setStatsErr] = useState<string | null>(null)
+  const [rankRows, setRankRows] = useState<RankItem[]>([])
+  const [myRank, setMyRank] = useState<number | null>(null)
+  const [rankLoading, setRankLoading] = useState(false)
+  const [rankErr, setRankErr] = useState<string | null>(null)
 
   const [reg, setReg] = useState({
     defense1: '',
@@ -203,6 +289,13 @@ export function GuideApp({ session, onLogout }: Props) {
   }, [session.displayName])
 
   const groupedResults = useMemo(() => groupMatchups(results), [results])
+  const rankRowsForView = useMemo(() => {
+    const top20 = rankRows.slice(0, 20)
+    const me = rankRows.find((r) => r.userId === session.userId)
+    if (!me) return top20
+    if (top20.some((r) => r.userId === me.userId)) return top20
+    return [...top20, me]
+  }, [rankRows, session.userId])
 
   const regSkillOptions = useMemo(
     () =>
@@ -262,6 +355,47 @@ export function GuideApp({ session, onLogout }: Props) {
       setSearchLoading(false)
     }
   }
+
+  const loadStatsAndRank = useCallback(async () => {
+    setStatsErr(null)
+    setRankErr(null)
+    setStatsLoading(true)
+    setRankLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('search_matchups', {
+        p_d1: null,
+        p_d2: null,
+        p_d3: null,
+        p_exclude: [],
+      })
+      if (error) {
+        setAttackTop10([])
+        setRankRows([])
+        setMyRank(null)
+        setStatsErr(error.message)
+        setRankErr(error.message)
+        return
+      }
+      const rows = ((data ?? []) as Record<string, unknown>[]).map((r) =>
+        mapRpcToMatchup(r),
+      )
+      setAttackTop10(buildAttackTop10(groupMatchups(rows)))
+      const ranking = buildContributorRanking(rows)
+      setRankRows(ranking)
+      const mine = ranking.find((r) => r.userId === session.userId)
+      setMyRank(mine ? mine.rank : null)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '통계 조회 실패'
+      setAttackTop10([])
+      setRankRows([])
+      setMyRank(null)
+      setStatsErr(msg)
+      setRankErr(msg)
+    } finally {
+      setStatsLoading(false)
+      setRankLoading(false)
+    }
+  }, [session.userId])
 
   const onVote = async (id: number, outcome: 'win' | 'lose') => {
     const ok =
@@ -374,6 +508,12 @@ export function GuideApp({ session, onLogout }: Props) {
       void loadAdminRequests()
     }
   }, [isAdmin, loadAdminRequests, nav])
+
+  useEffect(() => {
+    if (nav === 'stats' || nav === 'rank') {
+      void loadStatsAndRank()
+    }
+  }, [loadStatsAndRank, nav])
 
   useEffect(() => {
     setD1('')
@@ -587,7 +727,7 @@ export function GuideApp({ session, onLogout }: Props) {
     <div className="guide-shell">
       <nav className="guide-nav" aria-label="메인 메뉴">
         {navBtn('search', '공략 검색')}
-        {navBtn('stats', '방어 통계')}
+        {navBtn('stats', '공격 통계')}
         {navBtn('siege', '공성전')}
         {navBtn('register', '공략 등록')}
         {navBtn('rank', '기여 랭킹')}
@@ -609,7 +749,7 @@ export function GuideApp({ session, onLogout }: Props) {
           </p>
         </header>
 
-        {nav !== 'search' && nav !== 'register' && nav !== 'admin' && (
+        {nav === 'siege' && (
           <div className="guide-placeholder">
             <p style={{ margin: 0 }}>이 메뉴는 준비 중입니다.</p>
           </div>
@@ -906,6 +1046,127 @@ export function GuideApp({ session, onLogout }: Props) {
               </>
             )}
           </>
+        )}
+
+        {nav === 'stats' && (
+          <section className="guide-card" aria-labelledby="atk-stats-h">
+            <h2 id="atk-stats-h" className="card-title" style={{ marginTop: 0 }}>
+              공격 통계 TOP 10 (승률 순)
+            </h2>
+            <div className="guide-match-actions" style={{ padding: '0 0 0.8rem' }}>
+              <button
+                type="button"
+                className="guide-btn-ghost"
+                onClick={() => void loadStatsAndRank()}
+                disabled={statsLoading}
+              >
+                {statsLoading ? '불러오는 중…' : '새로고침'}
+              </button>
+            </div>
+            {statsErr ? (
+              <p className="form-error" role="alert">
+                {statsErr}
+              </p>
+            ) : null}
+            {!statsLoading && attackTop10.length === 0 ? (
+              <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                통계 데이터가 없습니다.
+              </p>
+            ) : null}
+            {attackTop10.length > 0 ? (
+              <div className="guide-grid">
+                {attackTop10.map((it, idx) => (
+                  <article key={it.key} className="guide-match-card">
+                    <div className="guide-match-head">
+                      <div className="guide-match-lines">
+                        <div className="guide-line">
+                          <span className="guide-badge-vs">#{idx + 1}</span>
+                          <span>{it.defenseLabel}</span>
+                        </div>
+                        <div className="guide-line">
+                          <span className="guide-badge-atk">ATK</span>
+                          <span>{it.attackLabel}</span>
+                        </div>
+                        {it.pet.trim() ? (
+                          <div className="guide-line">
+                            <span className="guide-badge-pet">펫</span>
+                            <span>{it.pet}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <span className="guide-rate-pill">
+                        승률 {Math.round(it.winRate * 100)}%
+                      </span>
+                    </div>
+                    <div className="guide-match-body">
+                      <p className="guide-skill" style={{ marginBottom: 0 }}>
+                        전적: {it.win}승 {it.lose}패 ({it.games}전)
+                      </p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        )}
+
+        {nav === 'rank' && (
+          <section className="guide-card" aria-labelledby="rank-h">
+            <h2 id="rank-h" className="card-title" style={{ marginTop: 0 }}>
+              기여 랭킹 (등록 공략 수)
+            </h2>
+            <div className="guide-match-actions" style={{ padding: '0 0 0.8rem' }}>
+              <button
+                type="button"
+                className="guide-btn-ghost"
+                onClick={() => void loadStatsAndRank()}
+                disabled={rankLoading}
+              >
+                {rankLoading ? '불러오는 중…' : '새로고침'}
+              </button>
+            </div>
+            {rankErr ? (
+              <p className="form-error" role="alert">
+                {rankErr}
+              </p>
+            ) : null}
+            <p className="guide-rank-me">
+              {myRank != null
+                ? `내 순위: ${myRank}위 / 전체 ${rankRows.length}명`
+                : `내 순위: 집계 데이터 없음 / 전체 ${rankRows.length}명`}
+            </p>
+            {!rankLoading && rankRows.length === 0 ? (
+              <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                랭킹 데이터가 없습니다.
+              </p>
+            ) : null}
+            {rankRowsForView.length > 0 ? (
+              <div className="guide-rank-list" role="table" aria-label="기여 랭킹 표">
+                {rankRowsForView.map((r) => (
+                  <div
+                    key={r.userId}
+                    className={
+                      r.userId === session.userId
+                        ? 'guide-rank-row guide-rank-row--me'
+                        : 'guide-rank-row'
+                    }
+                    role="row"
+                  >
+                    <span className="guide-rank-col-rank" role="cell">
+                      {r.rank}위
+                    </span>
+                    <span className="guide-rank-col-name" role="cell">
+                      {r.name}
+                      {r.userId === session.userId ? '  ← 나' : ''}
+                    </span>
+                    <span className="guide-rank-col-count" role="cell">
+                      {r.count}건
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
         )}
 
         {nav === 'admin' && isAdmin && (

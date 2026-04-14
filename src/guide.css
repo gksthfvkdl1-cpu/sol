@@ -613,6 +613,55 @@
   gap: 0.5rem;
 }
 
+.guide-rank-me {
+  margin: 0 0 0.7rem;
+  font-size: 0.85rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.guide-rank-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.guide-rank-row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 4.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+}
+
+.guide-rank-row--me {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.guide-rank-col-rank {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.guide-rank-col-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.guide-rank-col-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  text-align: right;
+}
+
 .guide-register-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
