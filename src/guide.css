@@ -667,6 +667,158 @@
   text-align: right;
 }
 
+.siege-card {
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
+}
+
+.siege-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.siege-register-toggle {
+  width: auto;
+  padding-inline: 1rem;
+}
+
+.siege-day-tabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.siege-day-tab {
+  border: 1px solid #bfdbfe;
+  background: #fff;
+  color: #1e3a8a;
+  border-radius: 10px;
+  padding: 0.5rem 0.25rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.siege-day-tab--on {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.siege-register-form {
+  border: 1px solid #dbeafe;
+  background: #fff;
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin-bottom: 0.85rem;
+}
+
+.siege-register-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0.6rem;
+}
+
+.siege-register-grid--rounds {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.siege-register-grid--rounds .guide-textarea {
+  min-height: 6rem;
+}
+
+.siege-board-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.siege-board-item {
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(37 99 235 / 0.08);
+  padding: 0.9rem;
+}
+
+.siege-speed-order {
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.siege-rounds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.siege-rounds section {
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 0.6rem;
+}
+
+.siege-rounds h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  color: #1e3a8a;
+  font-weight: 800;
+}
+
+.siege-rounds p {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: #334155;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.siege-author {
+  margin: 0.65rem 0 0;
+  font-size: 0.76rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .siege-register-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .siege-register-grid--rounds {
+    grid-template-columns: 1fr;
+  }
+
+  .siege-rounds {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .siege-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .siege-register-toggle {
+    width: 100%;
+  }
+
+  .siege-day-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .guide-register-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

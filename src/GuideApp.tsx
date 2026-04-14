@@ -79,6 +79,29 @@ type WeekOption = {
   label: string
 }
 
+type SiegePlanRow = {
+  id: number
+  day_of_week: number
+  speed_order: string
+  round1: string
+  round2: string
+  round3: string
+  author_name?: string
+  author_username?: string
+  author_id: string
+  created_at?: string
+}
+
+const SIEGE_DAYS: Array<{ value: number; label: string }> = [
+  { value: 1, label: '월' },
+  { value: 2, label: '화' },
+  { value: 3, label: '수' },
+  { value: 4, label: '목' },
+  { value: 5, label: '금' },
+  { value: 6, label: '토' },
+  { value: 7, label: '일' },
+]
+
 function winRatePct(win: number, lose: number): string {
   const t = Number(win) + Number(lose)
   if (t <= 0) return '—'
@@ -281,6 +304,21 @@ export function GuideApp({ session, onLogout }: Props) {
       return weekOptions[0]?.value ?? toIsoDate(startOfYearWeek(new Date()))
     },
   )
+  const [siegeDay, setSiegeDay] = useState<number>(1)
+  const [siegeRows, setSiegeRows] = useState<SiegePlanRow[]>([])
+  const [siegeLoading, setSiegeLoading] = useState(false)
+  const [siegeErr, setSiegeErr] = useState<string | null>(null)
+  const [siegeRegisterOpen, setSiegeRegisterOpen] = useState(false)
+  const [siegeReg, setSiegeReg] = useState({
+    day_of_week: 1,
+    speed_order: '',
+    round1: '',
+    round2: '',
+    round3: '',
+  })
+  const [siegeRegBusy, setSiegeRegBusy] = useState(false)
+  const [siegeRegErr, setSiegeRegErr] = useState<string | null>(null)
+  const [siegeRegMsg, setSiegeRegMsg] = useState<string | null>(null)
 
   const [reg, setReg] = useState({
     defense1: '',
@@ -481,6 +519,96 @@ export function GuideApp({ session, onLogout }: Props) {
     }
   }, [session.userId, statsWeekStart])
 
+  const loadSiegePlans = useCallback(async () => {
+    setSiegeErr(null)
+    setSiegeLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('siege_plans_by_day', {
+        p_day: siegeDay,
+      })
+      if (error) {
+        setSiegeRows([])
+        setSiegeErr(error.message)
+        return
+      }
+      const rows = (data ?? []) as Record<string, unknown>[]
+      setSiegeRows(
+        rows.map((r) => ({
+          id: Number(r.id ?? 0),
+          day_of_week: Number(r.day_of_week ?? siegeDay),
+          speed_order: String(r.speed_order ?? ''),
+          round1: String(r.round1 ?? ''),
+          round2: String(r.round2 ?? ''),
+          round3: String(r.round3 ?? ''),
+          author_name:
+            r.author_name != null ? String(r.author_name) : undefined,
+          author_username:
+            r.author_username != null ? String(r.author_username) : undefined,
+          author_id: String(r.author_id ?? ''),
+          created_at:
+            r.created_at != null ? String(r.created_at) : undefined,
+        })),
+      )
+    } catch (err) {
+      setSiegeRows([])
+      setSiegeErr(err instanceof Error ? err.message : '공성전 조회 실패')
+    } finally {
+      setSiegeLoading(false)
+    }
+  }, [siegeDay])
+
+  const onSiegeRegister = async (e: FormEvent) => {
+    e.preventDefault()
+    setSiegeRegErr(null)
+    setSiegeRegMsg(null)
+    const speed = siegeReg.speed_order.trim()
+    const r1 = siegeReg.round1.trim()
+    const r2 = siegeReg.round2.trim()
+    const r3 = siegeReg.round3.trim()
+    if (!speed || !r1 || !r2 || !r3) {
+      setSiegeRegErr('속공 순서, 1라운드, 2라운드, 3라운드를 모두 입력하세요.')
+      return
+    }
+    const tok = getSessionToken()
+    if (!tok) {
+      setSiegeRegErr('세션이 없습니다.')
+      return
+    }
+    setSiegeRegBusy(true)
+    try {
+      const { error } = await supabase.rpc('app_insert_siege_plan', {
+        p_session_token: tok,
+        p_day: siegeReg.day_of_week,
+        p_speed_order: speed,
+        p_round1: r1,
+        p_round2: r2,
+        p_round3: r3,
+      })
+      if (error) {
+        setSiegeRegErr(error.message)
+        return
+      }
+      setSiegeReg({
+        day_of_week: siegeReg.day_of_week,
+        speed_order: '',
+        round1: '',
+        round2: '',
+        round3: '',
+      })
+      setSiegeRegMsg('공성전 공략이 등록되었습니다.')
+      setSiegeRegisterOpen(false)
+      if (siegeReg.day_of_week !== siegeDay) {
+        setSiegeDay(siegeReg.day_of_week)
+      } else {
+        void loadSiegePlans()
+      }
+    } catch (err) {
+      setSiegeRegErr(err instanceof Error ? err.message : '공성전 등록 실패')
+    } finally {
+      setSiegeRegBusy(false)
+    }
+  }
+
   const onVote = async (id: number, outcome: 'win' | 'lose') => {
     const ok =
       outcome === 'win'
@@ -603,6 +731,12 @@ export function GuideApp({ session, onLogout }: Props) {
   }, [loadStatsAndRank, nav])
 
   useEffect(() => {
+    if (nav === 'siege') {
+      void loadSiegePlans()
+    }
+  }, [loadSiegePlans, nav])
+
+  useEffect(() => {
     if (nav === 'stats') {
       setStatsWeekStart(currentWeekStart)
     }
@@ -637,6 +771,10 @@ export function GuideApp({ session, onLogout }: Props) {
     setRegMsg(null)
     setRegBusy(false)
     setAdminMsg(null)
+    setSiegeErr(null)
+    setSiegeRegisterOpen(false)
+    setSiegeRegErr(null)
+    setSiegeRegMsg(null)
   }, [nav])
 
   const processSignupRequest = async (userId: string, action: 'approve' | 'reject') => {
@@ -844,9 +982,179 @@ export function GuideApp({ session, onLogout }: Props) {
         </header>
 
         {nav === 'siege' && (
-          <div className="guide-placeholder">
-            <p style={{ margin: 0 }}>이 메뉴는 준비 중입니다.</p>
-          </div>
+          <section className="guide-card siege-card" aria-labelledby="siege-h">
+            <div className="siege-top">
+              <h2 id="siege-h" className="card-title" style={{ margin: 0 }}>
+                공성전 작전 보드
+              </h2>
+              <button
+                type="button"
+                className="guide-btn-primary-lg siege-register-toggle"
+                onClick={() => {
+                  setSiegeRegisterOpen((prev) => !prev)
+                  setSiegeRegErr(null)
+                  setSiegeRegMsg(null)
+                }}
+              >
+                {siegeRegisterOpen ? '등록 닫기' : '공략 등록'}
+              </button>
+            </div>
+
+            <div className="siege-day-tabs" role="tablist" aria-label="공성전 요일 선택">
+              {SIEGE_DAYS.map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={siegeDay === d.value}
+                  className={
+                    siegeDay === d.value ? 'siege-day-tab siege-day-tab--on' : 'siege-day-tab'
+                  }
+                  onClick={() => setSiegeDay(d.value)}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+
+            {siegeRegisterOpen && (
+              <form className="siege-register-form" onSubmit={onSiegeRegister}>
+                <div className="siege-register-grid">
+                  <div className="field">
+                    <label htmlFor="siege-day-reg">등록 요일</label>
+                    <select
+                      id="siege-day-reg"
+                      className="field-input"
+                      value={siegeReg.day_of_week}
+                      onChange={(e) =>
+                        setSiegeReg((p) => ({
+                          ...p,
+                          day_of_week: Number(e.target.value),
+                        }))
+                      }
+                    >
+                      {SIEGE_DAYS.map((d) => (
+                        <option key={`reg-${d.value}`} value={d.value}>
+                          {d.label}요일
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="siege-speed">속공 순서</label>
+                    <input
+                      id="siege-speed"
+                      className="field-input"
+                      value={siegeReg.speed_order}
+                      onChange={(e) =>
+                        setSiegeReg((p) => ({ ...p, speed_order: e.target.value }))
+                      }
+                      placeholder="예: 비스킷 - 태오 - 레이첼 - 라이언 - 타카"
+                    />
+                  </div>
+                </div>
+                <div className="siege-register-grid siege-register-grid--rounds">
+                  <div className="field">
+                    <label htmlFor="siege-r1">1라운드</label>
+                    <textarea
+                      id="siege-r1"
+                      className="guide-textarea"
+                      value={siegeReg.round1}
+                      onChange={(e) =>
+                        setSiegeReg((p) => ({ ...p, round1: e.target.value }))
+                      }
+                      placeholder="1라운드 공략 입력"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="siege-r2">2라운드</label>
+                    <textarea
+                      id="siege-r2"
+                      className="guide-textarea"
+                      value={siegeReg.round2}
+                      onChange={(e) =>
+                        setSiegeReg((p) => ({ ...p, round2: e.target.value }))
+                      }
+                      placeholder="2라운드 공략 입력"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="siege-r3">3라운드</label>
+                    <textarea
+                      id="siege-r3"
+                      className="guide-textarea"
+                      value={siegeReg.round3}
+                      onChange={(e) =>
+                        setSiegeReg((p) => ({ ...p, round3: e.target.value }))
+                      }
+                      placeholder="3라운드 공략 입력"
+                    />
+                  </div>
+                </div>
+                {siegeRegErr ? (
+                  <p className="form-error" role="alert">
+                    {siegeRegErr}
+                  </p>
+                ) : null}
+                {siegeRegMsg ? (
+                  <p className="register-hint register-hint--success" role="status">
+                    {siegeRegMsg}
+                  </p>
+                ) : null}
+                <button type="submit" className="guide-btn-primary-lg" disabled={siegeRegBusy}>
+                  {siegeRegBusy ? '등록 중…' : '등록하기'}
+                </button>
+              </form>
+            )}
+
+            {siegeErr ? (
+              <p className="form-error" role="alert">
+                {siegeErr}
+              </p>
+            ) : null}
+
+            {siegeLoading ? (
+              <p className="guide-placeholder" style={{ marginTop: '0.8rem' }}>
+                불러오는 중…
+              </p>
+            ) : null}
+
+            {!siegeLoading && siegeRows.length === 0 ? (
+              <p className="guide-placeholder" style={{ marginTop: '0.8rem' }}>
+                선택한 요일의 공성전 공략이 없습니다.
+              </p>
+            ) : null}
+
+            {siegeRows.length > 0 ? (
+              <div className="siege-board-list">
+                {siegeRows.map((row) => (
+                  <article key={row.id} className="siege-board-item">
+                    <p className="siege-speed-order">속공 순서: {row.speed_order}</p>
+                    <div className="siege-rounds">
+                      <section>
+                        <h4>1라운드</h4>
+                        <p>{row.round1}</p>
+                      </section>
+                      <section>
+                        <h4>2라운드</h4>
+                        <p>{row.round2}</p>
+                      </section>
+                      <section>
+                        <h4>3라운드</h4>
+                        <p>{row.round3}</p>
+                      </section>
+                    </div>
+                    <p className="siege-author">
+                      작성자:{' '}
+                      {row.author_name ||
+                        row.author_username ||
+                        `user-${row.author_id.slice(0, 8)}`}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
         )}
 
         {nav === 'search' && (
