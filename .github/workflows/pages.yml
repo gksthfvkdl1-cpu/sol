@@ -1,6 +1,5 @@
 # GitHub Pages: https://gksthfvkdl1-cpu.github.io/sol/
-# 프론트만 배포됩니다. VITE_API_URL 은 아래 build env 에 백엔드 origin 을 둡니다.
-# (공개 URL만 저장; DATABASE_URL·JWT 등 비밀값은 저장소에 넣지 마세요.)
+# 프론트만 배포됩니다. VITE_API_URL = API 베이스 origin(공개 URL만; 비밀키·DB URL은 넣지 마세요).
 
 name: Deploy to GitHub Pages
 
@@ -30,7 +29,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install and build
         env:
-          VITE_API_URL: https://seven-gir4.onrender.com
+          VITE_API_URL: https://bvnlwpjjzptarpbwkeqn.supabase.co
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/sol/' }}
         run: |
           npm ci
