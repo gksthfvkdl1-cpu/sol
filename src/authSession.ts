@@ -1,9 +1,4 @@
-import type { User as SupabaseUser } from '@supabase/supabase-js'
-import type { AuthPublicConfig } from './lib/authPublicConfig.ts'
-import {
-  clearPublicAuthConfigCache,
-  loadPublicAuthConfig,
-} from './lib/authPublicConfig.ts'
+import { getSessionToken, setSessionToken } from './lib/sessionToken.ts'
 import { supabase } from './supabase/client.ts'
 
 export type UserSession = {
@@ -22,51 +17,33 @@ export type ProfileRow = {
   is_admin: boolean
 }
 
-/**
- * 관리자 UI·RLS `is_admin()` 과 동일한 규칙.
- * 비밀번호 검증은 Supabase Auth(auth.users)가 담당하고, 권한 문자열은 DB `auth_public_config`에서 읽음.
- */
-export function isPrivilegedAccount(
-  profile: ProfileRow,
-  email: string | undefined | null,
-  cfg: AuthPublicConfig,
-): boolean {
-  if (profile.is_admin === true) return true
-  const needle = cfg.admin_username_contains.trim().toLowerCase()
-  if (needle && profile.username.toLowerCase().includes(needle)) return true
-  const e = email?.toLowerCase().trim()
-  const adminEmail = cfg.admin_email_exact.trim().toLowerCase()
-  if (e && adminEmail && e === adminEmail) return true
-  return false
-}
-
-export async function loadProfile(userId: string): Promise<ProfileRow | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(
-      'id, username, display_name, approved, rejected, is_admin',
-    )
-    .eq('id', userId)
-    .maybeSingle()
-  if (error || !data) return null
-  return data as ProfileRow
-}
-
-export async function buildSession(
-  user: SupabaseUser,
+export async function loadSessionFromToken(
+  token: string | null,
 ): Promise<UserSession | null> {
-  const profile = await loadProfile(user.id)
-  if (!profile) return null
-  const cfg = await loadPublicAuthConfig()
+  if (!token?.trim()) return null
+  const { data, error } = await supabase.rpc('get_session_profile', {
+    p_session_token: token,
+  })
+  if (error || data == null) return null
+  const row = data as Record<string, unknown>
+  if (row.ok === false) return null
+  const userId = String(row.user_id ?? '')
+  const username = String(row.username ?? '')
+  if (!userId || !username) return null
   return {
-    userId: user.id,
-    username: profile.username,
-    displayName: profile.display_name || profile.username,
-    isAdmin: isPrivilegedAccount(profile, user.email, cfg),
+    userId,
+    username,
+    displayName: String(row.display_name ?? username),
+    isAdmin: row.is_admin === true,
   }
 }
 
 export async function signOutEverywhere(): Promise<void> {
-  clearPublicAuthConfigCache()
-  await supabase.auth.signOut()
+  const t = getSessionToken()
+  if (t) {
+    await supabase.rpc('app_logout', { p_session_token: t })
+  }
+  setSessionToken(null)
 }
+
+export { getSessionToken, setSessionToken }

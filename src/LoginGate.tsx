@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { loadPublicAuthConfig } from './lib/authPublicConfig.ts'
-import { buildSession, isPrivilegedAccount, loadProfile } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
-import {
-  isEmailNotConfirmedAuthError,
-} from './auth/privilegeLogin.ts'
-import {
-  friendlyAuthError,
-  loginInputToAuthEmail,
-} from './lib/authEmail.ts'
+import { setSessionToken } from './lib/sessionToken.ts'
 import { supabase } from './supabase/client.ts'
 import { BrandLogo } from './BrandLogo.tsx'
 import {
@@ -24,6 +16,19 @@ type Props = {
 
 type LocationState = { loginId?: string }
 
+function mapAppLoginError(code: string | undefined): string {
+  switch (code) {
+    case 'invalid_credentials':
+      return '아이디 또는 비밀번호가 올바르지 않습니다.'
+    case 'rejected':
+      return '가입이 거절된 계정입니다.'
+    case 'not_approved':
+      return '관리자 승인 후 로그인할 수 있습니다.'
+    default:
+      return '로그인에 실패했습니다.'
+  }
+}
+
 export function LoginGate({ onLoggedIn }: Props) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -31,9 +36,6 @@ export function LoginGate({ onLoggedIn }: Props) {
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState<string | null>(null)
   const [loginSubmitting, setLoginSubmitting] = useState(false)
-  const [showResendConfirm, setShowResendConfirm] = useState(false)
-  const [resendBusy, setResendBusy] = useState(false)
-  const [resendHint, setResendHint] = useState<string | null>(null)
 
   const [loginBg, setLoginBg] = useState<string | null>(null)
   const bgFileRef = useRef<HTMLInputElement>(null)
@@ -81,86 +83,46 @@ export function LoginGate({ onLoggedIn }: Props) {
     setLoginBg(null)
   }
 
-  const handleResendConfirmEmail = async () => {
-    const email = loginInputToAuthEmail(loginId.trim())
-    if (!email) return
-    setResendBusy(true)
-    setResendHint(null)
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-      })
-      if (error) {
-        setResendHint(friendlyAuthError(error.message) || '전송 실패')
-        return
-      }
-      setResendHint('인증 메일을 보냈습니다. 메일함을 확인한 뒤 다시 로그인하세요.')
-    } finally {
-      setResendBusy(false)
-    }
-  }
-
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault()
     setLoginError(null)
-    setShowResendConfirm(false)
-    setResendHint(null)
-    const id = loginId.trim()
+    const id = loginId.trim().toLowerCase()
     if (!id || !loginPassword) {
       setLoginError('아이디와 비밀번호를 입력하세요.')
       return
     }
     setLoginSubmitting(true)
     try {
-      const email = loginInputToAuthEmail(id)
-      if (!email) {
-        setLoginError('아이디를 입력하세요.')
-        return
-      }
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: loginPassword,
+      const { data, error } = await supabase.rpc('app_login', {
+        p_username: id,
+        p_password: loginPassword,
       })
       if (error) {
-        const code =
-          typeof error === 'object' && error && 'code' in error
-            ? String((error as { code?: string }).code ?? '')
-            : ''
-        setShowResendConfirm(
-          isEmailNotConfirmedAuthError(error.message, code || undefined),
-        )
-        setLoginError(friendlyAuthError(error.message) || '로그인 실패')
+        setLoginError(error.message || '로그인 실패')
         return
       }
-      if (!data.user) {
-        setLoginError('로그인에 실패했습니다.')
+      const row = data as {
+        ok?: boolean
+        token?: string
+        error?: string
+        user?: {
+          id: string
+          username: string
+          display_name: string
+          is_admin: boolean
+        }
+      }
+      if (!row?.ok || !row.token || !row.user) {
+        setLoginError(mapAppLoginError(row?.error))
         return
       }
-      const prof = await loadProfile(data.user.id)
-      if (!prof) {
-        await supabase.auth.signOut()
-        setLoginError('프로필을 찾을 수 없습니다.')
-        return
-      }
-      if (prof.rejected) {
-        await supabase.auth.signOut()
-        setLoginError('가입이 거절된 계정입니다.')
-        return
-      }
-      const cfg = await loadPublicAuthConfig()
-      if (!prof.approved && !isPrivilegedAccount(prof, data.user.email, cfg)) {
-        await supabase.auth.signOut()
-        setLoginError('관리자 승인 후 로그인할 수 있습니다.')
-        return
-      }
-      const next = await buildSession(data.user)
-      if (!next) {
-        await supabase.auth.signOut()
-        setLoginError('세션을 만들 수 없습니다.')
-        return
-      }
-      onLoggedIn(next)
+      setSessionToken(row.token)
+      onLoggedIn({
+        userId: String(row.user.id),
+        username: String(row.user.username),
+        displayName: String(row.user.display_name || row.user.username),
+        isAdmin: row.user.is_admin === true,
+      })
       setLoginPassword('')
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : '로그인 실패')
@@ -227,7 +189,7 @@ export function LoginGate({ onLoggedIn }: Props) {
               onSubmit={handleLogin}
             >
               <div className="field gate-field">
-                <label htmlFor="login-id">ID</label>
+                <label htmlFor="login-id">아이디</label>
                 <input
                   id="login-id"
                   name="userId"
@@ -259,23 +221,6 @@ export function LoginGate({ onLoggedIn }: Props) {
                   {loginError}
                 </p>
               )}
-              {showResendConfirm ? (
-                <div className="gate-resend-block">
-                  <button
-                    type="button"
-                    className="gate-bg-pill"
-                    disabled={resendBusy || !loginId.trim()}
-                    onClick={() => void handleResendConfirmEmail()}
-                  >
-                    {resendBusy ? '보내는 중…' : '인증 메일 다시 보내기'}
-                  </button>
-                  {resendHint ? (
-                    <p className="gate-form-hint" role="status">
-                      {resendHint}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
             </form>
             <div className="gate-btn-stack">
               <button

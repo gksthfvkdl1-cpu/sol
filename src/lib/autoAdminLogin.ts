@@ -1,7 +1,6 @@
-import { loginInputToAuthEmail } from './authEmail.ts'
+import { setSessionToken } from './sessionToken.ts'
 import { supabase } from '../supabase/client.ts'
 
-/** 빌드에 두 값이 모두 있으면 접속 시 자동 로그인(관리자 화면 기본 표시용) */
 export function isAutoAdminConfigured(): boolean {
   const id = import.meta.env.VITE_AUTO_ADMIN_ID?.trim()
   const pw = import.meta.env.VITE_AUTO_ADMIN_PASSWORD
@@ -12,11 +11,14 @@ export async function tryAutoAdminSignIn(): Promise<boolean> {
   if (!isAutoAdminConfigured()) return false
   const id = import.meta.env.VITE_AUTO_ADMIN_ID!.trim()
   const password = String(import.meta.env.VITE_AUTO_ADMIN_PASSWORD ?? '')
-  const email = loginInputToAuthEmail(id)
-  if (!email || !password) return false
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+  if (!id || !password) return false
+  const { data, error } = await supabase.rpc('app_login', {
+    p_username: id,
+    p_password: password,
   })
-  return !error && !!data.user
+  if (error || !data || typeof data !== 'object') return false
+  const row = data as { ok?: boolean; token?: string }
+  if (!row.ok || !row.token) return false
+  setSessionToken(row.token)
+  return true
 }

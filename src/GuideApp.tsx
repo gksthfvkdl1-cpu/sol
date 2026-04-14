@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { AutocompleteField } from './AutocompleteField.tsx'
-import { loadProfile } from './authSession.ts'
+import { getSessionToken } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
 import type { MatchupRow } from './types/matchup.ts'
 import './App.css'
@@ -142,15 +142,8 @@ export function GuideApp({ session, onLogout }: Props) {
   }, [loadHeroes])
 
   useEffect(() => {
-    let dead = false
-    ;(async () => {
-      const prof = await loadProfile(session.userId)
-      if (!dead && prof) setProfileName(prof.display_name || prof.username)
-    })()
-    return () => {
-      dead = true
-    }
-  }, [session.userId, session.displayName])
+    setProfileName(session.displayName)
+  }, [session.displayName])
 
   const addExclude = () => {
     const t = excludeInput.trim()
@@ -233,11 +226,16 @@ export function GuideApp({ session, onLogout }: Props) {
     setEditErr(null)
     setEditBusy(true)
     try {
-      const { error } = await supabase.from('matchup_edit_requests').insert({
-        matchup_id: id,
-        requester_id: session.userId,
-        skill_order: editSkillOrder.trim(),
-        notes: editNotes.trim(),
+      const tok = getSessionToken()
+      if (!tok) {
+        setEditErr('세션이 없습니다. 다시 로그인하세요.')
+        return
+      }
+      const { error } = await supabase.rpc('app_submit_edit_request', {
+        p_session_token: tok,
+        p_matchup_id: id,
+        p_skill_order: editSkillOrder.trim(),
+        p_notes: editNotes.trim(),
       })
       if (error) {
         setEditErr(error.message)
@@ -257,64 +255,28 @@ export function GuideApp({ session, onLogout }: Props) {
     setAdminErr(null)
     setAdminLoading(true)
     try {
-      const { data: pending, error: e1 } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, created_at')
-        .eq('approved', false)
-        .eq('rejected', false)
-        .order('created_at', { ascending: true })
-      if (e1) {
-        setAdminErr(e1.message)
+      const tok = getSessionToken()
+      if (!tok) {
+        setAdminErr('세션이 없습니다.')
         setSignupRequests([])
         setEditRequests([])
         return
       }
-      setSignupRequests((pending ?? []) as PendingProfileRow[])
-
-      const { data: edits, error: e2 } = await supabase
-        .from('matchup_edit_requests')
-        .select('id, matchup_id, skill_order, notes, created_at, requester_id')
-        .eq('status', 'pending')
-        .order('id', { ascending: true })
-      if (e2 || !edits?.length) {
+      const { data, error } = await supabase.rpc('app_admin_panel_data', {
+        p_session_token: tok,
+      })
+      if (error) {
+        setAdminErr(error.message)
+        setSignupRequests([])
         setEditRequests([])
-        if (e2) setAdminErr(e2.message)
         return
       }
-      const mids = [...new Set(edits.map((e) => e.matchup_id as number))]
-      const rids = [...new Set(edits.map((e) => e.requester_id as string))]
-      const [{ data: ms }, { data: ps }] = await Promise.all([
-        supabase
-          .from('matchups')
-          .select('id, defense1, defense2, defense3')
-          .in('id', mids),
-        supabase
-          .from('profiles')
-          .select('id, username, display_name')
-          .in('id', rids),
-      ])
-      const mMap = new Map((ms ?? []).map((m) => [m.id, m]))
-      const pMap = new Map((ps ?? []).map((p) => [p.id, p]))
-      setEditRequests(
-        edits.map((e) => {
-          const mid = e.matchup_id as number
-          const rid = e.requester_id as string
-          const mm = mMap.get(mid)
-          const pp = pMap.get(rid)
-          return {
-            id: Number(e.id),
-            matchup_id: mid,
-            skill_order: String(e.skill_order ?? ''),
-            notes: String(e.notes ?? ''),
-            created_at: String(e.created_at ?? ''),
-            requester_username: pp?.username ?? '',
-            requester_display_name: pp?.display_name,
-            defense1: mm?.defense1 ?? '',
-            defense2: mm?.defense2 ?? '',
-            defense3: mm?.defense3 ?? '',
-          }
-        }),
-      )
+      const j = data as {
+        pending_signups?: PendingProfileRow[]
+        edit_requests?: EditRequestRow[]
+      }
+      setSignupRequests(j.pending_signups ?? [])
+      setEditRequests(j.edit_requests ?? [])
     } catch (err) {
       setAdminErr(err instanceof Error ? err.message : '관리자 목록 조회 실패')
     } finally {
@@ -359,7 +321,13 @@ export function GuideApp({ session, onLogout }: Props) {
     setAdminErr(null)
     setAdminMsg(null)
     try {
+      const tok = getSessionToken()
+      if (!tok) {
+        setAdminErr('세션이 없습니다.')
+        return
+      }
       const { error } = await supabase.rpc('admin_set_profile_approved', {
+        p_session_token: tok,
         p_user_id: userId,
         p_approved: action === 'approve',
       })
@@ -380,7 +348,15 @@ export function GuideApp({ session, onLogout }: Props) {
     try {
       const fn =
         action === 'approve' ? 'approve_edit_request' : 'reject_edit_request'
-      const { error } = await supabase.rpc(fn, { p_req_id: id })
+      const tok = getSessionToken()
+      if (!tok) {
+        setAdminErr('세션이 없습니다.')
+        return
+      }
+      const { error } = await supabase.rpc(fn, {
+        p_session_token: tok,
+        p_req_id: id,
+      })
       if (error) {
         setAdminErr(error.message)
         return
@@ -402,7 +378,15 @@ export function GuideApp({ session, onLogout }: Props) {
     if (!ok) return
     setDeleteBusyId(id)
     try {
-      const { error } = await supabase.from('matchups').delete().eq('id', id)
+      const tok = getSessionToken()
+      if (!tok) {
+        setSearchError('세션이 없습니다.')
+        return
+      }
+      const { error } = await supabase.rpc('app_delete_matchup', {
+        p_session_token: tok,
+        p_id: id,
+      })
       if (error) {
         setSearchError(error.message)
         return
@@ -424,16 +408,21 @@ export function GuideApp({ session, onLogout }: Props) {
     setRegMsg(null)
     setRegBusy(true)
     try {
-      const { error } = await supabase.from('matchups').insert({
-        defense1: reg.defense1.trim(),
-        defense2: reg.defense2.trim(),
-        defense3: reg.defense3.trim(),
-        attack1: reg.attack1.trim(),
-        attack2: reg.attack2.trim(),
-        attack3: reg.attack3.trim(),
-        skill_order: reg.skill_order.trim(),
-        notes: reg.notes.trim(),
-        author_id: session.userId,
+      const tok = getSessionToken()
+      if (!tok) {
+        setRegErr('세션이 없습니다.')
+        return
+      }
+      const { error } = await supabase.rpc('app_insert_matchup', {
+        p_session_token: tok,
+        p_defense1: reg.defense1.trim(),
+        p_defense2: reg.defense2.trim(),
+        p_defense3: reg.defense3.trim(),
+        p_attack1: reg.attack1.trim(),
+        p_attack2: reg.attack2.trim(),
+        p_attack3: reg.attack3.trim(),
+        p_skill_order: reg.skill_order.trim(),
+        p_notes: reg.notes.trim(),
       })
       if (error) {
         setRegErr(error.message)

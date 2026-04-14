@@ -1,14 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  isSignupUsernameBlocked,
-  loadPublicAuthConfig,
-} from './lib/authPublicConfig.ts'
-import {
-  friendlyAuthError,
-  loginInputToAuthEmail,
-  loginInputToUsername,
-} from './lib/authEmail.ts'
+import { loginInputToUsername } from './lib/authEmail.ts'
 import { supabase } from './supabase/client.ts'
 import { BrandLogo } from './BrandLogo.tsx'
 import {
@@ -81,36 +73,40 @@ export function RegisterGate() {
       setRegError('비밀번호는 4자 이상이어야 합니다.')
       return
     }
-    const uname = loginInputToUsername(id)
-    const authCfg = await loadPublicAuthConfig()
-    if (isSignupUsernameBlocked(uname, authCfg)) {
-      setRegError('사용할 수 없는 아이디입니다.')
-      return
-    }
+    const uname = loginInputToUsername(id).toLowerCase()
     setRegSubmitting(true)
     try {
-      const email = loginInputToAuthEmail(id)
-      if (!email) {
-        setRegError('아이디를 입력하세요.')
-        return
-      }
-      const { error } = await supabase.auth.signUp({
-        email,
-        password: pw,
-        options: {
-          data: {
-            username: uname,
-            display_name: nick,
-          },
-        },
+      const { data, error } = await supabase.rpc('app_register', {
+        p_username: uname,
+        p_password: pw,
+        p_display_name: nick,
       })
       if (error) {
-        setRegError(friendlyAuthError(error.message) || '신청 실패')
+        setRegError(error.message || '신청 실패')
         return
       }
-      await supabase.auth.signOut()
-      window.alert('가입 신청이 접수되었습니다.\n관리자에게 문의하시오.')
-      navigate('/', { replace: true, state: { loginId: id } })
+      const row = data as {
+        ok?: boolean
+        error?: string
+        auto_approved?: boolean
+      }
+      if (!row?.ok) {
+        const c = row?.error
+        if (c === 'reserved_username')
+          setRegError('사용할 수 없는 아이디입니다.')
+        else if (c === 'username_taken')
+          setRegError('이미 사용 중인 아이디입니다.')
+        else if (c === 'invalid_input')
+          setRegError('입력 값을 확인하세요.')
+        else setRegError('가입에 실패했습니다.')
+        return
+      }
+      window.alert(
+        row.auto_approved
+          ? '가입이 완료되었습니다. 로그인하세요.'
+          : '가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.',
+      )
+      navigate('/', { replace: true, state: { loginId: uname } })
     } catch (err) {
       setRegError(err instanceof Error ? err.message : '신청 실패')
     } finally {
