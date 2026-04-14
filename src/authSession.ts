@@ -1,4 +1,5 @@
 import type { User as SupabaseUser } from '@supabase/supabase-js'
+import { ADMIN_USERNAME } from './auth/constants.ts'
 import { supabase } from './supabase/client.ts'
 
 export type UserSession = {
@@ -38,7 +39,9 @@ export async function buildSession(
     userId: user.id,
     username: profile.username,
     displayName: profile.display_name || profile.username,
-    isAdmin: profile.is_admin === true,
+    isAdmin:
+      profile.is_admin === true ||
+      profile.username.toLowerCase() === ADMIN_USERNAME,
   }
 }
 
