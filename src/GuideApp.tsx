@@ -722,7 +722,7 @@ export function GuideApp({ session, onLogout }: Props) {
                     조건에 맞는 공략이 없습니다.
                   </p>
                 ) : (
-                  <div className="guide-grid">
+                  <div className="guide-grid guide-grid--results">
                     {groupedResults.map((g) => {
                       const h = g.header
                       const sumW = g.strategies.reduce((s, x) => s + x.win, 0)

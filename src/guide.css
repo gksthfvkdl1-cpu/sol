@@ -393,66 +393,57 @@
   color: #334155;
 }
 
-/*
-  Masonry: 열마다 높이가 달라도 다음 카드가 위 열 빈칸으로 이어짐 (Firefox 등).
-  미지원(Chrome/Safari 등): 동일 gap 의 일반 그리드 + align-items:start 로 행 높이 맞춤만 방지.
-*/
-@supports (grid-template-rows: masonry) {
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
   .guide-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: masonry;
-    gap: 0.85rem;
-    align-items: start;
-    align-tracks: start;
-  }
-
-  @media (min-width: 1200px) {
-    .guide-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 960px) {
-    .guide-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 560px) {
-    .guide-grid {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto;
-    }
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@supports not (grid-template-rows: masonry) {
+@media (max-width: 560px) {
   .guide-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-rows: min-content;
-    grid-auto-flow: row;
-    gap: 0.85rem;
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
 
-  @media (min-width: 1200px) {
-    .guide-grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
+/*
+  검색 결과 전용 Masonry 유사 레이아웃:
+  Chrome/Edge/iOS Safari/Android Chrome 에서도 안정적으로 동작하도록 multi-column 사용.
+*/
+.guide-grid--results {
+  display: block;
+  column-count: 3;
+  column-gap: 0.85rem;
+}
+
+.guide-grid--results .guide-match-card {
+  width: 100%;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  margin: 0 0 0.85rem;
+}
+
+@media (min-width: 1200px) {
+  .guide-grid--results {
+    column-count: 4;
   }
+}
 
-  @media (max-width: 960px) {
-    .guide-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+@media (max-width: 960px) {
+  .guide-grid--results {
+    column-count: 2;
   }
+}
 
-  @media (max-width: 560px) {
-    .guide-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
+@media (max-width: 560px) {
+  .guide-grid--results {
+    column-count: 1;
   }
 }
 
@@ -547,6 +538,8 @@
   font-size: 0.8rem;
   color: #475569;
   margin: 0 0 0.5rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .guide-notes {
@@ -559,6 +552,8 @@
   line-height: 1.45;
   color: #78350f;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .guide-match-actions {
