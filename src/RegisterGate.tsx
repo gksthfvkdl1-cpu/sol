@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { toAuthEmail } from './lib/authEmail.ts'
+import {
+  friendlyAuthError,
+  loginInputToAuthEmail,
+  loginInputToUsername,
+} from './lib/authEmail.ts'
 import { supabase } from './supabase/client.ts'
 import { BrandLogo } from './BrandLogo.tsx'
 import {
@@ -73,25 +77,30 @@ export function RegisterGate() {
       setRegError('비밀번호는 4자 이상이어야 합니다.')
       return
     }
-    if (id.toLowerCase() === 'admin') {
+    const uname = loginInputToUsername(id)
+    if (uname === 'admin') {
       setRegError('사용할 수 없는 아이디입니다.')
       return
     }
     setRegSubmitting(true)
     try {
-      const email = toAuthEmail(id)
+      const email = loginInputToAuthEmail(id)
+      if (!email) {
+        setRegError('아이디를 입력하세요.')
+        return
+      }
       const { error } = await supabase.auth.signUp({
         email,
         password: pw,
         options: {
           data: {
-            username: id,
+            username: uname,
             display_name: nick,
           },
         },
       })
       if (error) {
-        setRegError(error.message || '신청 실패')
+        setRegError(friendlyAuthError(error.message) || '신청 실패')
         return
       }
       await supabase.auth.signOut()
@@ -169,12 +178,14 @@ export function RegisterGate() {
                 <label htmlFor="reg-id">아이디</label>
                 <input
                   id="reg-id"
-                  name="regUsername"
+                  name="userId"
                   type="text"
                   className="gate-field-input"
                   value={regId}
                   onChange={(e) => setRegId(e.target.value)}
                   autoComplete="off"
+                  inputMode="text"
+                  spellCheck={false}
                   required
                 />
               </div>

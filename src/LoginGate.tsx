@@ -2,7 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { buildSession, loadProfile } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
-import { toAuthEmail } from './lib/authEmail.ts'
+import {
+  friendlyAuthError,
+  loginInputToAuthEmail,
+} from './lib/authEmail.ts'
 import { supabase } from './supabase/client.ts'
 import { BrandLogo } from './BrandLogo.tsx'
 import {
@@ -81,13 +84,17 @@ export function LoginGate({ onLoggedIn }: Props) {
     }
     setLoginSubmitting(true)
     try {
-      const email = toAuthEmail(id)
+      const email = loginInputToAuthEmail(id)
+      if (!email) {
+        setLoginError('아이디를 입력하세요.')
+        return
+      }
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password: loginPassword,
       })
       if (error) {
-        setLoginError(error.message || '로그인 실패')
+        setLoginError(friendlyAuthError(error.message) || '로그인 실패')
         return
       }
       if (!data.user) {
@@ -186,12 +193,14 @@ export function LoginGate({ onLoggedIn }: Props) {
                 <label htmlFor="login-id">ID</label>
                 <input
                   id="login-id"
-                  name="username"
+                  name="userId"
                   type="text"
                   className="gate-field-input"
                   value={loginId}
                   onChange={(e) => setLoginId(e.target.value)}
                   autoComplete="username"
+                  inputMode="text"
+                  spellCheck={false}
                   required
                 />
               </div>
