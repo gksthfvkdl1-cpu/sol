@@ -10,6 +10,25 @@ import { supabase } from './supabase/client.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
 
+const ALL_NAV_IDS: NavId[] = [
+  'search',
+  'stats',
+  'siege',
+  'register',
+  'rank',
+  'admin',
+]
+
+function initialNavForSession(s: UserSession): NavId {
+  const custom = import.meta.env.VITE_INITIAL_NAV?.trim()
+  if (custom && ALL_NAV_IDS.includes(custom as NavId)) {
+    if (custom === 'admin' && !s.isAdmin) return 'search'
+    return custom as NavId
+  }
+  if (import.meta.env.VITE_AUTO_ADMIN_ID?.trim() && s.isAdmin) return 'admin'
+  return 'search'
+}
+
 type PendingProfileRow = {
   id: string
   username: string
@@ -63,7 +82,7 @@ function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
 
 export function GuideApp({ session, onLogout }: Props) {
   const isAdmin = session.isAdmin
-  const [nav, setNav] = useState<NavId>('search')
+  const [nav, setNav] = useState<NavId>(() => initialNavForSession(session))
   const [heroOptions, setHeroOptions] = useState<string[]>([])
 
   const [d1, setD1] = useState('')

@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import './App.css'
 import './guide.css'
 import { buildSession, loadProfile, signOutEverywhere, type UserSession } from './authSession.ts'
+import { isAutoAdminConfigured, tryAutoAdminSignIn } from './lib/autoAdminLogin.ts'
 import { supabase } from './supabase/client.ts'
 import { GuideApp } from './GuideApp.tsx'
 import { LoginGate } from './LoginGate.tsx'
@@ -16,10 +17,15 @@ export default function App() {
     let cancelled = false
 
     async function syncSession() {
-      const {
+      let {
         data: { session: s },
       } = await supabase.auth.getSession()
       if (cancelled) return
+      if (!s?.user && isAutoAdminConfigured()) {
+        await tryAutoAdminSignIn()
+        if (cancelled) return
+        s = (await supabase.auth.getSession()).data.session
+      }
       if (!s?.user) {
         setSession(null)
         setAuthReady(true)
@@ -54,7 +60,12 @@ export default function App() {
 
     void syncSession()
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, s) => {
+      if (event === 'SIGNED_OUT' && isAutoAdminConfigured()) {
+        const ok = await tryAutoAdminSignIn()
+        if (!ok) setSession(null)
+        return
+      }
       if (!s?.user) {
         setSession(null)
         return
@@ -76,7 +87,6 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOutEverywhere()
-    setSession(null)
   }
 
   if (!authReady) {
