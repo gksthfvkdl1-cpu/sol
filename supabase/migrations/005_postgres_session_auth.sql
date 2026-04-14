@@ -45,7 +45,19 @@ CREATE POLICY user_sessions_none ON public.user_sessions FOR ALL USING (FALSE);
 
 -- ---------------------------------------------------------------------------
 -- 트리거/구 is_admin() 제거
+-- is_admin() 을 참조하는 RLS 정책을 먼저 제거해야 DROP FUNCTION 가능
 -- ---------------------------------------------------------------------------
+DROP POLICY IF EXISTS profiles_select ON public.profiles;
+DROP POLICY IF EXISTS profiles_update_self ON public.profiles;
+DROP POLICY IF EXISTS profiles_update_admin ON public.profiles;
+DROP POLICY IF EXISTS profiles_deny_all ON public.profiles;
+DROP POLICY IF EXISTS matchups_select_all ON public.matchups;
+DROP POLICY IF EXISTS matchups_insert_auth ON public.matchups;
+DROP POLICY IF EXISTS matchups_delete_admin ON public.matchups;
+DROP POLICY IF EXISTS edit_req_select ON public.matchup_edit_requests;
+DROP POLICY IF EXISTS edit_req_insert ON public.matchup_edit_requests;
+DROP POLICY IF EXISTS edit_req_deny ON public.matchup_edit_requests;
+
 DROP TRIGGER IF EXISTS profile_update_guard ON public.profiles;
 DROP FUNCTION IF EXISTS public.profile_update_guard();
 DROP FUNCTION IF EXISTS public.is_admin();
@@ -129,21 +141,12 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- RLS 재정의 (anon 만 사용, 직접 쓰기 금지 → RPC로만)
+-- (위에서 정책은 이미 DROP 됨 — 여기서 CREATE 만)
 -- ---------------------------------------------------------------------------
-DROP POLICY IF EXISTS profiles_select ON public.profiles;
-DROP POLICY IF EXISTS profiles_update_self ON public.profiles;
-DROP POLICY IF EXISTS profiles_update_admin ON public.profiles;
-DROP POLICY IF EXISTS profiles_deny_all ON public.profiles;
 CREATE POLICY profiles_deny_all ON public.profiles FOR ALL USING (FALSE);
 
-DROP POLICY IF EXISTS matchups_select_all ON public.matchups;
-DROP POLICY IF EXISTS matchups_insert_auth ON public.matchups;
-DROP POLICY IF EXISTS matchups_delete_admin ON public.matchups;
 CREATE POLICY matchups_select_all ON public.matchups FOR SELECT USING (TRUE);
 
-DROP POLICY IF EXISTS edit_req_select ON public.matchup_edit_requests;
-DROP POLICY IF EXISTS edit_req_insert ON public.matchup_edit_requests;
-DROP POLICY IF EXISTS edit_req_deny ON public.matchup_edit_requests;
 CREATE POLICY edit_req_deny ON public.matchup_edit_requests FOR ALL USING (FALSE);
 
 REVOKE INSERT, UPDATE, DELETE ON public.matchups FROM anon, authenticated;
