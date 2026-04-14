@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ADMIN_USERNAME } from './auth/constants.ts'
+import { isReservedAdminUsername } from './auth/constants.ts'
 import {
   friendlyAuthError,
   loginInputToAuthEmail,
@@ -79,7 +79,7 @@ export function RegisterGate() {
       return
     }
     const uname = loginInputToUsername(id)
-    if (uname === ADMIN_USERNAME) {
+    if (isReservedAdminUsername(uname)) {
       setRegError('사용할 수 없는 아이디입니다.')
       return
     }

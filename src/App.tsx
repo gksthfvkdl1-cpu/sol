@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import './App.css'
 import './guide.css'
-import { buildSession, loadProfile, signOutEverywhere, type UserSession } from './authSession.ts'
+import {
+  buildSession,
+  isPrivilegedAccount,
+  loadProfile,
+  signOutEverywhere,
+  type UserSession,
+} from './authSession.ts'
 import { isAutoAdminConfigured, tryAutoAdminSignIn } from './lib/autoAdminLogin.ts'
 import { supabase } from './supabase/client.ts'
 import { GuideApp } from './GuideApp.tsx'
@@ -46,7 +52,7 @@ export default function App() {
         setAuthReady(true)
         return
       }
-      if (!prof.approved) {
+      if (!prof.approved && !isPrivilegedAccount(prof, s.user.email)) {
         await supabase.auth.signOut()
         if (!cancelled) window.alert('관리자 승인 후 로그인할 수 있습니다.')
         setSession(null)
@@ -71,7 +77,11 @@ export default function App() {
         return
       }
       const prof = await loadProfile(s.user.id)
-      if (!prof || prof.rejected || !prof.approved) {
+      if (
+        !prof ||
+        prof.rejected ||
+        (!prof.approved && !isPrivilegedAccount(prof, s.user.email))
+      ) {
         setSession(null)
         return
       }

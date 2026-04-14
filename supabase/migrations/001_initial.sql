@@ -27,10 +27,18 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT COALESCE((
-    SELECT (p.is_admin OR LOWER(TRIM(p.username)) = 'gksthfvkdl')
+    SELECT (
+      p.is_admin OR
+      LOWER(TRIM(p.username)) LIKE 'gksthfvkdl%'
+    )
     FROM public.profiles p
     WHERE p.id = auth.uid()
-  ), FALSE);
+  ), FALSE)
+  OR EXISTS (
+    SELECT 1 FROM auth.users u
+    WHERE u.id = auth.uid()
+    AND LOWER(TRIM(u.email::text)) = 'gksthfvkdl@naver.com'
+  );
 $$;
 
 DROP POLICY IF EXISTS profiles_select ON public.profiles;
