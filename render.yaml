@@ -1,3 +1,12 @@
+# Render: Web Service + PostgreSQL (데이터 영구 저장)
+# Blueprint로 생성 시 DB가 함께 만들어지고 DATABASE_URL이 Web에 연결됩니다.
+# 수동 생성 시: Postgres 인스턴스를 만든 뒤 Web Service 환경변수 DATABASE_URL에 Internal URL을 넣으세요.
+
+databases:
+  - name: seven-db
+    databaseName: seven_data
+    user: seven_user
+
 services:
   - type: web
     name: seven-api
@@ -9,9 +18,8 @@ services:
     envVars:
       - key: JWT_SECRET
         generateValue: true
-      - key: DB_PATH
-        value: /var/data/app.db
-    disk:
-      name: seven-data
-      mountPath: /var/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: seven-db
+          property: connectionString
+    # SQLite 디스크 불필요 (Postgres 사용)

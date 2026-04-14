@@ -1,6 +1,6 @@
 # GitHub Pages: https://gksthfvkdl1-cpu.github.io/sol/
-# 프론트만 배포됩니다. SQLite API는 별도 서버(Railway 등)에 두고
-# Secrets → VITE_API_URL 에 백엔드 origin (슬래시 없이) 을 넣으세요.
+# 프론트만 배포됩니다. VITE_API_URL 은 아래 build env 에 백엔드 origin 을 둡니다.
+# (공개 URL만 저장; DATABASE_URL·JWT 등 비밀값은 저장소에 넣지 마세요.)
 
 name: Deploy to GitHub Pages
 
@@ -30,12 +30,9 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Install and build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: https://seven-gir4.onrender.com
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/sol/' }}
         run: |
-          if [ -z "$VITE_API_URL" ]; then
-            echo "::warning::VITE_API_URL secret 이 비어 있으면 배포 사이트에서 API가 동작하지 않습니다."
-          fi
           npm ci
           npm run build
       - uses: actions/upload-pages-artifact@v3
