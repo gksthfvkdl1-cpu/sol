@@ -73,6 +73,12 @@ type RankItem = {
   rank: number
 }
 
+type WeekOption = {
+  index: number
+  value: string
+  label: string
+}
+
 function winRatePct(win: number, lose: number): string {
   const t = Number(win) + Number(lose)
   if (t <= 0) return '—'
@@ -152,31 +158,6 @@ function groupMatchups(rows: MatchupRow[]): MatchupGroup[] {
   return out
 }
 
-function buildAttackTop10(groups: MatchupGroup[]): AttackStatItem[] {
-  return groups
-    .map((g) => {
-      const win = g.strategies.reduce((s, x) => s + x.win, 0)
-      const lose = g.strategies.reduce((s, x) => s + x.lose, 0)
-      const games = win + lose
-      return {
-        key: g.groupId,
-        defenseLabel: `${g.header.defense1} / ${g.header.defense2} / ${g.header.defense3}`,
-        attackLabel: `${g.header.attack1} / ${g.header.attack2} / ${g.header.attack3}`,
-        pet: g.header.pet,
-        win,
-        lose,
-        games,
-        winRate: games > 0 ? win / games : 0,
-      }
-    })
-    .sort((a, b) => {
-      if (b.winRate !== a.winRate) return b.winRate - a.winRate
-      if (b.games !== a.games) return b.games - a.games
-      return b.win - a.win
-    })
-    .slice(0, 10)
-}
-
 function buildContributorRanking(rows: MatchupRow[]): RankItem[] {
   const byUser = new Map<string, { name: string; count: number }>()
   for (const r of rows) {
@@ -213,6 +194,51 @@ function buildContributorRanking(rows: MatchupRow[]): RankItem[] {
   return out
 }
 
+function startOfIsoWeek(d: Date): Date {
+  const x = new Date(d)
+  const day = x.getDay() // 0:Sun, 1:Mon ...
+  const diff = day === 0 ? -6 : 1 - day
+  x.setDate(x.getDate() + diff)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function addDays(d: Date, days: number): Date {
+  const x = new Date(d)
+  x.setDate(x.getDate() + days)
+  return x
+}
+
+function toIsoDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function formatDotDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-')
+  if (!y || !m || !d) return isoDate
+  return `${y}.${m}.${d}`
+}
+
+function buildWeekOptions(count: number): WeekOption[] {
+  const thisMonday = startOfIsoWeek(new Date())
+  const out: WeekOption[] = []
+  for (let i = 0; i < count; i += 1) {
+    const start = addDays(thisMonday, -7 * i)
+    const end = addDays(start, 6)
+    const startIso = toIsoDate(start)
+    const endIso = toIsoDate(end)
+    out.push({
+      index: i + 1,
+      value: startIso,
+      label: `${i + 1}주차 (${formatDotDate(startIso)} ~ ${formatDotDate(endIso)})`,
+    })
+  }
+  return out
+}
+
 export function GuideApp({ session, onLogout }: Props) {
   const isAdmin = session.isAdmin
   const [nav, setNav] = useState<NavId>(() => initialNavForSession(session))
@@ -235,6 +261,10 @@ export function GuideApp({ session, onLogout }: Props) {
   const [myRank, setMyRank] = useState<number | null>(null)
   const [rankLoading, setRankLoading] = useState(false)
   const [rankErr, setRankErr] = useState<string | null>(null)
+  const weekOptions = useMemo(() => buildWeekOptions(40), [])
+  const [statsWeekStart, setStatsWeekStart] = useState<string>(
+    () => weekOptions[0]?.value ?? toIsoDate(startOfIsoWeek(new Date())),
+  )
 
   const [reg, setReg] = useState({
     defense1: '',
@@ -296,6 +326,13 @@ export function GuideApp({ session, onLogout }: Props) {
     if (top20.some((r) => r.userId === me.userId)) return top20
     return [...top20, me]
   }, [rankRows, session.userId])
+
+  const selectedWeekLabel = useMemo(
+    () =>
+      weekOptions.find((w) => w.value === statsWeekStart)?.label ??
+      `선택 주차 (${statsWeekStart})`,
+    [statsWeekStart, weekOptions],
+  )
 
   const regSkillOptions = useMemo(
     () =>
@@ -362,24 +399,55 @@ export function GuideApp({ session, onLogout }: Props) {
     setStatsLoading(true)
     setRankLoading(true)
     try {
-      const { data, error } = await supabase.rpc('search_matchups', {
-        p_d1: null,
-        p_d2: null,
-        p_d3: null,
-        p_exclude: [],
-      })
-      if (error) {
+      const [statsRes, rankRes] = await Promise.all([
+        supabase.rpc('attack_stats_weekly', { p_week_start: statsWeekStart }),
+        supabase.rpc('search_matchups', {
+          p_d1: null,
+          p_d2: null,
+          p_d3: null,
+          p_exclude: [],
+        }),
+      ])
+
+      if (statsRes.error) {
         setAttackTop10([])
+        setStatsErr(statsRes.error.message)
+      } else {
+        const statsRows = (statsRes.data ?? []) as Record<string, unknown>[]
+        const mapped: AttackStatItem[] = statsRows
+          .map((r) => {
+            const win = Number(r.win ?? 0)
+            const lose = Number(r.lose ?? 0)
+            const games = win + lose
+            return {
+              key: String(r.group_key ?? ''),
+              defenseLabel: `${String(r.defense1 ?? '')} / ${String(r.defense2 ?? '')} / ${String(r.defense3 ?? '')}`,
+              attackLabel: `${String(r.attack1 ?? '')} / ${String(r.attack2 ?? '')} / ${String(r.attack3 ?? '')}`,
+              pet: String(r.pet ?? ''),
+              win,
+              lose,
+              games,
+              winRate: games > 0 ? win / games : 0,
+            }
+          })
+          .sort((a, b) => {
+            if (b.winRate !== a.winRate) return b.winRate - a.winRate
+            if (b.games !== a.games) return b.games - a.games
+            return b.win - a.win
+          })
+          .slice(0, 10)
+        setAttackTop10(mapped)
+      }
+
+      if (rankRes.error) {
         setRankRows([])
         setMyRank(null)
-        setStatsErr(error.message)
-        setRankErr(error.message)
+        setRankErr(rankRes.error.message)
         return
       }
-      const rows = ((data ?? []) as Record<string, unknown>[]).map((r) =>
+      const rows = ((rankRes.data ?? []) as Record<string, unknown>[]).map((r) =>
         mapRpcToMatchup(r),
       )
-      setAttackTop10(buildAttackTop10(groupMatchups(rows)))
       const ranking = buildContributorRanking(rows)
       setRankRows(ranking)
       const mine = ranking.find((r) => r.userId === session.userId)
@@ -395,7 +463,7 @@ export function GuideApp({ session, onLogout }: Props) {
       setStatsLoading(false)
       setRankLoading(false)
     }
-  }, [session.userId])
+  }, [session.userId, statsWeekStart])
 
   const onVote = async (id: number, outcome: 'win' | 'lose') => {
     const ok =
@@ -422,6 +490,9 @@ export function GuideApp({ session, onLogout }: Props) {
         ),
       )
       void loadHeroes()
+      if (nav === 'stats' || nav === 'rank') {
+        void loadStatsAndRank()
+      }
     } catch {
       /* ignore */
     }
@@ -1053,6 +1124,24 @@ export function GuideApp({ session, onLogout }: Props) {
             <h2 id="atk-stats-h" className="card-title" style={{ marginTop: 0 }}>
               공격 통계 TOP 10 (승률 순)
             </h2>
+            <div className="field" style={{ marginBottom: '0.7rem' }}>
+              <label htmlFor="stats-week-select">주차 선택</label>
+              <select
+                id="stats-week-select"
+                className="field-input"
+                value={statsWeekStart}
+                onChange={(e) => setStatsWeekStart(e.target.value)}
+              >
+                {weekOptions.map((w) => (
+                  <option key={w.value} value={w.value}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="guide-rank-me" style={{ marginTop: 0 }}>
+              기준: {selectedWeekLabel}
+            </p>
             <div className="guide-match-actions" style={{ padding: '0 0 0.8rem' }}>
               <button
                 type="button"
