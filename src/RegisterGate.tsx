@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { isReservedAdminUsername } from './auth/constants.ts'
+import {
+  isSignupUsernameBlocked,
+  loadPublicAuthConfig,
+} from './lib/authPublicConfig.ts'
 import {
   friendlyAuthError,
   loginInputToAuthEmail,
@@ -79,7 +82,8 @@ export function RegisterGate() {
       return
     }
     const uname = loginInputToUsername(id)
-    if (isReservedAdminUsername(uname)) {
+    const authCfg = await loadPublicAuthConfig()
+    if (isSignupUsernameBlocked(uname, authCfg)) {
       setRegError('사용할 수 없는 아이디입니다.')
       return
     }

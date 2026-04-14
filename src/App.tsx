@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import './App.css'
 import './guide.css'
+import { loadPublicAuthConfig } from './lib/authPublicConfig.ts'
 import {
   buildSession,
   isPrivilegedAccount,
@@ -52,7 +53,8 @@ export default function App() {
         setAuthReady(true)
         return
       }
-      if (!prof.approved && !isPrivilegedAccount(prof, s.user.email)) {
+      const cfg = await loadPublicAuthConfig()
+      if (!prof.approved && !isPrivilegedAccount(prof, s.user.email, cfg)) {
         await supabase.auth.signOut()
         if (!cancelled) window.alert('관리자 승인 후 로그인할 수 있습니다.')
         setSession(null)
@@ -77,10 +79,11 @@ export default function App() {
         return
       }
       const prof = await loadProfile(s.user.id)
+      const cfg = await loadPublicAuthConfig()
       if (
         !prof ||
         prof.rejected ||
-        (!prof.approved && !isPrivilegedAccount(prof, s.user.email))
+        (!prof.approved && !isPrivilegedAccount(prof, s.user.email, cfg))
       ) {
         setSession(null)
         return

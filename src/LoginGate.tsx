@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { loadPublicAuthConfig } from './lib/authPublicConfig.ts'
 import { buildSession, isPrivilegedAccount, loadProfile } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
 import {
@@ -147,7 +148,8 @@ export function LoginGate({ onLoggedIn }: Props) {
         setLoginError('가입이 거절된 계정입니다.')
         return
       }
-      if (!prof.approved && !isPrivilegedAccount(prof, data.user.email)) {
+      const cfg = await loadPublicAuthConfig()
+      if (!prof.approved && !isPrivilegedAccount(prof, data.user.email, cfg)) {
         await supabase.auth.signOut()
         setLoginError('관리자 승인 후 로그인할 수 있습니다.')
         return
