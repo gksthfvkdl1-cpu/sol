@@ -603,6 +603,12 @@ export function GuideApp({ session, onLogout }: Props) {
   }, [loadStatsAndRank, nav])
 
   useEffect(() => {
+    if (nav === 'stats') {
+      setStatsWeekStart(currentWeekStart)
+    }
+  }, [currentWeekStart, nav])
+
+  useEffect(() => {
     setD1('')
     setD2('')
     setD3('')
@@ -630,6 +636,7 @@ export function GuideApp({ session, onLogout }: Props) {
     setRegErr(null)
     setRegMsg(null)
     setRegBusy(false)
+    setAdminMsg(null)
   }, [nav])
 
   const processSignupRequest = async (userId: string, action: 'approve' | 'reject') => {
@@ -1165,7 +1172,7 @@ export function GuideApp({ session, onLogout }: Props) {
                 onClick={() => void loadStatsAndRank()}
                 disabled={statsLoading}
               >
-                {statsLoading ? '불러오는 중…' : '새로고침'}
+                {statsLoading ? '검색 중…' : '검색'}
               </button>
             </div>
             {statsErr ? (
@@ -1227,7 +1234,7 @@ export function GuideApp({ session, onLogout }: Props) {
                 onClick={() => void loadStatsAndRank()}
                 disabled={rankLoading}
               >
-                {rankLoading ? '불러오는 중…' : '새로고침'}
+                {rankLoading ? '검색 중…' : '검색'}
               </button>
             </div>
             {rankErr ? (
@@ -1297,7 +1304,7 @@ export function GuideApp({ session, onLogout }: Props) {
                 onClick={() => void loadAdminRequests()}
                 disabled={adminLoading}
               >
-                {adminLoading ? '불러오는 중…' : '새로고침'}
+                {adminLoading ? '검색 중…' : '검색'}
               </button>
             </div>
 

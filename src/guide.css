@@ -17,6 +17,11 @@
   font-weight: 600;
 }
 
+.guide-shell .card-title {
+  color: var(--guide-text);
+  font-weight: 800;
+}
+
 .guide-shell .field-input,
 .guide-shell .field-input.ac-input {
   background: var(--guide-input-bg);
@@ -617,7 +622,7 @@
   margin: 0 0 0.7rem;
   font-size: 0.85rem;
   color: #334155;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .guide-rank-list {
