@@ -9,7 +9,6 @@ import {
   type UserSession,
 } from './authSession.ts'
 import { SESSION_TOKEN_STORAGE_KEY } from './lib/sessionToken.ts'
-import { isAutoAdminConfigured, tryAutoAdminSignIn } from './lib/autoAdminLogin.ts'
 import { GuideApp } from './GuideApp.tsx'
 import { LoginGate } from './LoginGate.tsx'
 import { RegisterGate } from './RegisterGate.tsx'
@@ -22,11 +21,7 @@ export default function App() {
     let cancelled = false
 
     async function syncSession() {
-      let token = getSessionToken()
-      if (!token && isAutoAdminConfigured()) {
-        await tryAutoAdminSignIn()
-        token = getSessionToken()
-      }
+      const token = getSessionToken()
       if (!token) {
         if (!cancelled) {
           setSession(null)
