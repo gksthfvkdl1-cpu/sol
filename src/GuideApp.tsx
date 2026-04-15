@@ -321,7 +321,9 @@ export function GuideApp({ session, onLogout }: Props) {
     attack1: '',
     attack2: '',
     attack3: '',
-    pet: '',
+    pet1: '',
+    pet2: '',
+    pet3: '',
     skillSlot1: '',
     skillSlot2: '',
     skillSlot3: '',
@@ -781,7 +783,9 @@ export function GuideApp({ session, onLogout }: Props) {
       attack1: '',
       attack2: '',
       attack3: '',
-      pet: '',
+      pet1: '',
+      pet2: '',
+      pet3: '',
       skillSlot1: '',
       skillSlot2: '',
       skillSlot3: '',
@@ -893,6 +897,7 @@ export function GuideApp({ session, onLogout }: Props) {
     const a1 = reg.attack1.trim()
     const a2 = reg.attack2.trim()
     const a3 = reg.attack3.trim()
+    const pets = [reg.pet1.trim(), reg.pet2.trim(), reg.pet3.trim()].filter(Boolean)
     if (!d1 || !d2 || !d3 || !a1 || !a2 || !a3) {
       setRegErr('방어1·방어2·방어3, 공격1·공격2·공격3을 모두 입력하세요.')
       return
@@ -934,7 +939,7 @@ export function GuideApp({ session, onLogout }: Props) {
         p_attack1: a1,
         p_attack2: a2,
         p_attack3: a3,
-        p_pet: reg.pet.trim(),
+        p_pet: pets.join(' / '),
         p_skill_order: skillOrderJoined,
         p_notes: reg.notes.trim(),
       })
@@ -949,7 +954,9 @@ export function GuideApp({ session, onLogout }: Props) {
         attack1: '',
         attack2: '',
         attack3: '',
-        pet: '',
+        pet1: '',
+        pet2: '',
+        pet3: '',
         skillSlot1: '',
         skillSlot2: '',
         skillSlot3: '',
@@ -1311,9 +1318,9 @@ export function GuideApp({ session, onLogout }: Props) {
                                 <div className="guide-line guide-line--portraits">
                                   <span className="guide-badge-pet">펫</span>
                                   <HeroPortraitStrip
-                                    names={[h.pet]}
+                                    names={splitTeamLabel(h.pet)}
                                     portraitUrlByKey={portraitUrlByKey}
-                                    padToThreeColumns
+                                    fixedColumns={3}
                                   />
                                 </div>
                               ) : null}
@@ -1543,9 +1550,9 @@ export function GuideApp({ session, onLogout }: Props) {
                           <div className="guide-line guide-line--portraits">
                             <span className="guide-badge-pet">펫</span>
                             <HeroPortraitStrip
-                              names={[it.pet]}
+                              names={splitTeamLabel(it.pet)}
                               portraitUrlByKey={portraitUrlByKey}
-                              padToThreeColumns
+                              fixedColumns={3}
                             />
                           </div>
                         ) : null}
@@ -1814,10 +1821,26 @@ export function GuideApp({ session, onLogout }: Props) {
               </div>
               <div className="guide-register-grid guide-register-pet-row">
                 <AutocompleteField
-                  id="rpet"
-                  label="펫"
-                  value={reg.pet}
-                  onChange={(v) => setReg((p) => ({ ...p, pet: v }))}
+                  id="rpet1"
+                  label="펫1"
+                  value={reg.pet1}
+                  onChange={(v) => setReg((p) => ({ ...p, pet1: v }))}
+                  options={heroOptions}
+                  maxSuggestions={5}
+                />
+                <AutocompleteField
+                  id="rpet2"
+                  label="펫2"
+                  value={reg.pet2}
+                  onChange={(v) => setReg((p) => ({ ...p, pet2: v }))}
+                  options={heroOptions}
+                  maxSuggestions={5}
+                />
+                <AutocompleteField
+                  id="rpet3"
+                  label="펫3"
+                  value={reg.pet3}
+                  onChange={(v) => setReg((p) => ({ ...p, pet3: v }))}
                   options={heroOptions}
                   maxSuggestions={5}
                 />

@@ -3,28 +3,27 @@ import { portraitKey } from './lib/portraitKey.ts'
 type Props = {
   names: string[]
   portraitUrlByKey: Readonly<Record<string, string>>
-  /**
-   * 펫처럼 1명만 있을 때도 VS/ATK와 같이 3열을 쓰고, 1열(왼쪽 1/3)에만 표시
-   * (미설정 시 1명이면 한 줄 전체 가운데로 모임)
-   */
-  padToThreeColumns?: boolean
+  /** 고정 칸 수(예: 펫은 3칸 고정). 실제 데이터가 부족하면 오른쪽 칸을 빈칸으로 채움 */
+  fixedColumns?: number
 }
 
 export function HeroPortraitStrip({
   names,
   portraitUrlByKey,
-  padToThreeColumns = false,
+  fixedColumns,
 }: Props) {
-  const slots = names.map((n) => {
-    const label = n.trim()
-    const key = portraitKey(n)
-    const url = key ? portraitUrlByKey[key] : undefined
-    return { label, key, url }
-  })
+  const slots = names
+    .map((n) => {
+      const label = n.trim()
+      const key = portraitKey(n)
+      const url = key ? portraitUrlByKey[key] : undefined
+      return { label, key, url }
+    })
+    .filter((x) => Boolean(x.label))
 
-  const useThreeColPad =
-    padToThreeColumns && slots.length === 1 && Boolean(slots[0]?.label)
-  const colCount = useThreeColPad ? 3 : Math.max(1, slots.length)
+  const requestedCols = Math.max(1, Number(fixedColumns ?? 0))
+  const colCount = Math.max(requestedCols, slots.length || 1)
+  const padCount = Math.max(0, colCount - slots.length)
 
   return (
     <div
@@ -52,18 +51,13 @@ export function HeroPortraitStrip({
           {label ? <span className="guide-portrait-label">{label}</span> : null}
         </div>
       ))}
-      {useThreeColPad ? (
-        <>
-          <div
-            className="guide-portrait-slot guide-portrait-slot--pad"
-            aria-hidden
-          />
-          <div
-            className="guide-portrait-slot guide-portrait-slot--pad"
-            aria-hidden
-          />
-        </>
-      ) : null}
+      {Array.from({ length: padCount }).map((_, idx) => (
+        <div
+          key={`pad-${idx}`}
+          className="guide-portrait-slot guide-portrait-slot--pad"
+          aria-hidden
+        />
+      ))}
     </div>
   )
 }
