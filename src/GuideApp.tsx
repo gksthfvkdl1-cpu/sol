@@ -18,13 +18,6 @@ import { supabase } from './supabase/client.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
 
-function initialNavForSession(s: UserSession): NavId {
-  // 로그인 세션이 유지된 상태로 접속해도 첫 화면은 항상 공략 검색으로 고정
-  // (요청: 등록/수정 탭 자동 진입 방지)
-  void s
-  return 'search'
-}
-
 type PendingProfileRow = {
   id: string
   username: string
@@ -270,7 +263,7 @@ function buildWeekOptionsOfYear(year: number): WeekOption[] {
 
 export function GuideApp({ session, onLogout }: Props) {
   const isAdmin = session.isAdmin
-  const [nav, setNav] = useState<NavId>(() => initialNavForSession(session))
+  const [nav, setNav] = useState<NavId>('search')
   const [heroOptions, setHeroOptions] = useState<string[]>([])
   const [portraitUrlByKey, setPortraitUrlByKey] = useState<Record<string, string>>(
     {},
@@ -393,6 +386,11 @@ export function GuideApp({ session, onLogout }: Props) {
   useEffect(() => {
     setProfileName(session.displayName)
   }, [session.displayName])
+
+  useEffect(() => {
+    // 로그인/세션 복원 직후 첫 진입 탭은 항상 공략 검색으로 고정
+    setNav('search')
+  }, [session.userId])
 
   const groupedResults = useMemo(() => groupMatchups(results), [results])
   const rankRowsForView = useMemo(() => {
