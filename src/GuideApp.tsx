@@ -18,21 +18,10 @@ import { supabase } from './supabase/client.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
 
-const ALL_NAV_IDS: NavId[] = [
-  'search',
-  'stats',
-  'siege',
-  'register',
-  'rank',
-  'admin',
-]
-
 function initialNavForSession(s: UserSession): NavId {
-  const custom = import.meta.env.VITE_INITIAL_NAV?.trim()
-  if (custom && ALL_NAV_IDS.includes(custom as NavId)) {
-    return custom as NavId
-  }
-  if (import.meta.env.VITE_AUTO_ADMIN_ID?.trim() && s.isAdmin) return 'admin'
+  // 로그인 세션이 유지된 상태로 접속해도 첫 화면은 항상 공략 검색으로 고정
+  // (요청: 등록/수정 탭 자동 진입 방지)
+  void s
   return 'search'
 }
 
