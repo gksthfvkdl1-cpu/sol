@@ -11,7 +11,9 @@ import type { UserSession } from './authSession.ts'
 import type { MatchupRow } from './types/matchup.ts'
 import './App.css'
 import './guide.css'
+import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
+import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
 import { supabase } from './supabase/client.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
@@ -28,7 +30,6 @@ const ALL_NAV_IDS: NavId[] = [
 function initialNavForSession(s: UserSession): NavId {
   const custom = import.meta.env.VITE_INITIAL_NAV?.trim()
   if (custom && ALL_NAV_IDS.includes(custom as NavId)) {
-    if (custom === 'admin' && !s.isAdmin) return 'search'
     return custom as NavId
   }
   if (import.meta.env.VITE_AUTO_ADMIN_ID?.trim() && s.isAdmin) return 'admin'
@@ -106,6 +107,14 @@ function winRatePct(win: number, lose: number): string {
   const t = Number(win) + Number(lose)
   if (t <= 0) return '—'
   return `${Math.round((Number(win) / t) * 100)}%`
+}
+
+/** 통계 카드의 "이름 / 이름 / 이름" 라벨을 초상화용 배열로 */
+function splitTeamLabel(label: string): string[] {
+  return label
+    .split(/\s*\/\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
 
 /** 공격1~3 이름 기준으로 스킬 순서 선택지 (각 영웅 × 1, 2) */
@@ -274,6 +283,9 @@ export function GuideApp({ session, onLogout }: Props) {
   const isAdmin = session.isAdmin
   const [nav, setNav] = useState<NavId>(() => initialNavForSession(session))
   const [heroOptions, setHeroOptions] = useState<string[]>([])
+  const [portraitUrlByKey, setPortraitUrlByKey] = useState<Record<string, string>>(
+    {},
+  )
 
   const [d1, setD1] = useState('')
   const [d2, setD2] = useState('')
@@ -364,9 +376,30 @@ export function GuideApp({ session, onLogout }: Props) {
     }
   }, [])
 
+  const loadPortraitMap = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.rpc('hero_portraits_map')
+      if (error || !data) {
+        setPortraitUrlByKey({})
+        return
+      }
+      const next: Record<string, string> = {}
+      for (const row of data as { hero_key: string; image_url: string }[]) {
+        next[String(row.hero_key)] = String(row.image_url)
+      }
+      setPortraitUrlByKey(next)
+    } catch {
+      setPortraitUrlByKey({})
+    }
+  }, [])
+
   useEffect(() => {
     void loadHeroes()
   }, [loadHeroes])
+
+  useEffect(() => {
+    void loadPortraitMap()
+  }, [loadPortraitMap])
 
   useEffect(() => {
     setProfileName(session.displayName)
@@ -963,7 +996,7 @@ export function GuideApp({ session, onLogout }: Props) {
         {navBtn('siege', '공성전')}
         {navBtn('register', '공략 등록')}
         {navBtn('rank', '기여 랭킹')}
-        {isAdmin ? navBtn('admin', '회원가입 신청') : null}
+        {navBtn('admin', '등록/수정')}
       </nav>
 
       <div className="guide-inner">
@@ -1273,22 +1306,28 @@ export function GuideApp({ session, onLogout }: Props) {
                         <article key={g.groupId} className="guide-match-card">
                           <div className="guide-match-head">
                             <div className="guide-match-lines">
-                              <div className="guide-line">
+                              <div className="guide-line guide-line--portraits">
                                 <span className="guide-badge-vs">VS</span>
-                                <span>
-                                  {h.defense1} / {h.defense2} / {h.defense3}
-                                </span>
+                                <HeroPortraitStrip
+                                  names={[h.defense1, h.defense2, h.defense3]}
+                                  portraitUrlByKey={portraitUrlByKey}
+                                />
                               </div>
-                              <div className="guide-line">
+                              <div className="guide-line guide-line--portraits">
                                 <span className="guide-badge-atk">ATK</span>
-                                <span>
-                                  {h.attack1} / {h.attack2} / {h.attack3}
-                                </span>
+                                <HeroPortraitStrip
+                                  names={[h.attack1, h.attack2, h.attack3]}
+                                  portraitUrlByKey={portraitUrlByKey}
+                                />
                               </div>
                               {h.pet.trim() ? (
-                                <div className="guide-line">
+                                <div className="guide-line guide-line--portraits">
                                   <span className="guide-badge-pet">펫</span>
-                                  <span>{h.pet}</span>
+                                  <HeroPortraitStrip
+                                    names={[h.pet]}
+                                    portraitUrlByKey={portraitUrlByKey}
+                                    padToThreeColumns
+                                  />
                                 </div>
                               ) : null}
                             </div>
@@ -1499,18 +1538,28 @@ export function GuideApp({ session, onLogout }: Props) {
                   <article key={it.key} className="guide-match-card">
                     <div className="guide-match-head">
                       <div className="guide-match-lines">
-                        <div className="guide-line">
+                        <div className="guide-line guide-line--portraits">
                           <span className="guide-badge-vs">#{idx + 1}</span>
-                          <span>{it.defenseLabel}</span>
+                          <HeroPortraitStrip
+                            names={splitTeamLabel(it.defenseLabel)}
+                            portraitUrlByKey={portraitUrlByKey}
+                          />
                         </div>
-                        <div className="guide-line">
+                        <div className="guide-line guide-line--portraits">
                           <span className="guide-badge-atk">ATK</span>
-                          <span>{it.attackLabel}</span>
+                          <HeroPortraitStrip
+                            names={splitTeamLabel(it.attackLabel)}
+                            portraitUrlByKey={portraitUrlByKey}
+                          />
                         </div>
                         {it.pet.trim() ? (
-                          <div className="guide-line">
+                          <div className="guide-line guide-line--portraits">
                             <span className="guide-badge-pet">펫</span>
-                            <span>{it.pet}</span>
+                            <HeroPortraitStrip
+                              names={[it.pet]}
+                              portraitUrlByKey={portraitUrlByKey}
+                              padToThreeColumns
+                            />
                           </div>
                         ) : null}
                       </div>
@@ -1589,11 +1638,20 @@ export function GuideApp({ session, onLogout }: Props) {
           </section>
         )}
 
-        {nav === 'admin' && isAdmin && (
+        {nav === 'admin' && (
           <section className="guide-card" aria-labelledby="admin-h">
             <h2 id="admin-h" className="card-title" style={{ marginTop: 0 }}>
-              회원가입 / 수정 신청 관리
+              등록/수정
             </h2>
+            {getSessionToken() ? (
+              <AdminPortraitPanel
+                sessionToken={getSessionToken()!}
+                heroOptions={heroOptions}
+                onPortraitsChanged={() => void loadPortraitMap()}
+              />
+            ) : null}
+            {isAdmin ? (
+              <>
             {adminErr ? (
               <p className="form-error" role="alert">
                 {adminErr}
@@ -1706,6 +1764,8 @@ export function GuideApp({ session, onLogout }: Props) {
                 ))}
               </div>
             )}
+              </>
+            ) : null}
           </section>
         )}
 

@@ -12,6 +12,9 @@ interface ImportMetaEnv {
    */
   readonly VITE_AUTO_ADMIN_ID?: string
   readonly VITE_AUTO_ADMIN_PASSWORD?: string
-  /** 첫 화면 탭 (예: admin). 미설정이고 VITE_AUTO_ADMIN_ID 가 있으면 관리자일 때 admin */
+  /** 첫 화면 탭 (예: admin=등록/수정). 미설정이고 VITE_AUTO_ADMIN_ID 가 있으면 관리자일 때 admin */
   readonly VITE_INITIAL_NAV?: string
+  /** Cloudinary 업로드(관리자 초상화). Unsigned preset + cloud name */
+  readonly VITE_CLOUDINARY_CLOUD_NAME?: string
+  readonly VITE_CLOUDINARY_UPLOAD_PRESET?: string
 }

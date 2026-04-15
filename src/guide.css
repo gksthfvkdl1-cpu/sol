@@ -418,37 +418,31 @@
 }
 
 /*
-  검색 결과 전용 Masonry 유사 레이아웃:
-  Chrome/Edge/iOS Safari/Android Chrome 에서도 안정적으로 동작하도록 multi-column 사용.
+  검색 결과: CSS Grid 행 우선(왼쪽→오른쪽, 위→아래).
+  multi-column 은 카드 높이가 다르면 아래 줄이 비는 현상이 나와 Grid 로 통일.
+  최대 3열(넓은 화면에서도 4열 사용 안 함).
 */
 .guide-grid--results {
-  display: block;
-  column-count: 3;
-  column-gap: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: start;
 }
 
 .guide-grid--results .guide-match-card {
-  width: 100%;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  margin: 0 0 0.85rem;
-}
-
-@media (min-width: 1200px) {
-  .guide-grid--results {
-    column-count: 4;
-  }
+  margin: 0;
+  min-width: 0;
 }
 
 @media (max-width: 960px) {
   .guide-grid--results {
-    column-count: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 560px) {
   .guide-grid--results {
-    column-count: 1;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -483,6 +477,11 @@
 .guide-match-lines {
   flex: 1;
   min-width: 0;
+  /* VS/ATK/펫 줄 — 승률 배지 전까지 (스트립은 grid 로 N등분) */
+  --portrait-badge-w: 3rem;
+  --portrait-img: 3.35rem;
+  --portrait-strip-gap: 0.38rem;
+  --portrait-row-gap: 0.38rem;
 }
 
 .guide-line {
@@ -492,6 +491,231 @@
   font-size: 0.8rem;
   margin-bottom: 0.2rem;
   line-height: 1.35;
+}
+
+.guide-line--portraits {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: 0.48rem;
+  margin-bottom: var(--portrait-row-gap, 0.38rem);
+}
+
+.guide-line--portraits:last-child {
+  margin-bottom: 0;
+}
+
+/* VS / ATK / 펫 배지 열 너비 통일 → 세로로 초상화 칸이 맞음 */
+.guide-line--portraits .guide-badge-vs,
+.guide-line--portraits .guide-badge-atk,
+.guide-line--portraits .guide-badge-pet {
+  flex: 0 0 var(--portrait-badge-w, 2.5rem);
+  width: var(--portrait-badge-w, 2.5rem);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+}
+
+/* 열 개수는 HeroPortraitStrip 인라인 gridTemplateColumns 로 지정 (3명이면 1:1:1 균등) */
+.guide-portrait-strip {
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  gap: var(--portrait-strip-gap, 0.38rem);
+  min-width: 0;
+  flex: 1;
+  padding-bottom: 2px;
+}
+
+.guide-portrait-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.14rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.guide-portrait-slot--pad {
+  min-height: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.guide-portrait-img,
+.guide-portrait-fallback {
+  width: min(var(--portrait-img, 3.35rem), 100%);
+  max-width: 100%;
+  aspect-ratio: 1;
+  height: auto;
+  border-radius: 9px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.guide-portrait-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px;
+}
+
+.guide-portrait-label {
+  font-size: 0.78rem;
+  color: #334155;
+  line-height: 1.25;
+  text-align: center;
+  word-break: keep-all;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guide-admin-portrait-list--global {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.guide-admin-portrait-missing-scroll {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.guide-admin-missing-chip {
+  padding: 0.25rem 0.45rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  color: #475569;
+}
+
+.guide-admin-missing-chip:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.guide-admin-portrait-upload {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.guide-admin-portrait-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.guide-admin-portrait-file-name {
+  font-size: 0.8rem;
+  color: #334155;
+  word-break: break-all;
+}
+
+.guide-admin-portrait-file-hint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.guide-admin-portrait-preview {
+  margin: 0.35rem 0 0.6rem;
+}
+
+.guide-admin-portrait-preview-img {
+  max-width: 6rem;
+  max-height: 6rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  object-fit: cover;
+}
+
+.guide-admin-portrait-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.guide-admin-portrait-slot-block {
+  margin-bottom: 0.85rem;
+}
+
+.guide-admin-portrait-slot-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.guide-admin-portrait-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.guide-admin-portrait-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.guide-admin-portrait-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  min-width: 5rem;
+}
+
+.guide-admin-portrait-thumb {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+}
+
+.guide-admin-portrait-missing {
+  font-size: 0.75rem;
+  color: #94a3b8;
 }
 
 .guide-badge-vs {
