@@ -318,6 +318,8 @@ export function GuideApp({ session, onLogout }: Props) {
   const [results, setResults] = useState<MatchupRow[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  /** 검색 완료마다 증가 — 동일 결과 재검색 시에도 masonry useLayoutEffect 가 다시 돌도록 */
+  const [searchMasonryTick, setSearchMasonryTick] = useState(0)
   const [searched, setSearched] = useState(false)
   const [attackTop10, setAttackTop10] = useState<AttackStatItem[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
@@ -468,6 +470,7 @@ export function GuideApp({ session, onLogout }: Props) {
     () =>
       JSON.stringify({
         nav,
+        searchMasonryTick,
         groups: groupedResults.map((g) => g.groupId),
         editingId,
         editSkillOrder,
@@ -479,6 +482,7 @@ export function GuideApp({ session, onLogout }: Props) {
       }),
     [
       nav,
+      searchMasonryTick,
       groupedResults,
       editingId,
       editSkillOrder,
@@ -563,6 +567,7 @@ export function GuideApp({ session, onLogout }: Props) {
       setSearchError(e instanceof Error ? e.message : '검색 실패')
     } finally {
       setSearchLoading(false)
+      setSearchMasonryTick((n) => n + 1)
     }
   }
 

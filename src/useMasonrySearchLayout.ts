@@ -30,7 +30,10 @@ export function useMasonrySearchLayout(layoutKey: string) {
   const layout = useCallback(() => {
     const root = rootRef.current
     if (!root) return
-    const cards = [...root.querySelectorAll<HTMLElement>('.guide-match-card')]
+    const cards = [...root.children].filter(
+      (n): n is HTMLElement =>
+        n instanceof HTMLElement && n.classList.contains('guide-match-card'),
+    )
     if (cards.length === 0) {
       root.style.height = '0px'
       return
