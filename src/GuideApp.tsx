@@ -19,6 +19,7 @@ import {
   readLoginBgForUser,
 } from './loginBgStorage.ts'
 import { supabase } from './supabase/client.ts'
+import { useMasonrySearchLayout } from './useMasonrySearchLayout.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
 
@@ -435,12 +436,62 @@ export function GuideApp({ session, onLogout }: Props) {
     setAppLoginBg(readLoginBgForUser(session.username))
   }, [session.username])
 
+  /** 커스텀 배경 시 #root 기본 배경이 이미지·앱 루트를 가리지 않도록 (모든 메뉴 탭에서 동일) */
+  useEffect(() => {
+    if (!appLoginBg) return
+    const rootEl = document.getElementById('root')
+    const prevRootBg = rootEl?.style.backgroundColor ?? ''
+    const prevRootMinH = rootEl?.style.minHeight ?? ''
+    const prevHtmlBg = document.documentElement.style.backgroundColor
+    if (rootEl) {
+      rootEl.style.backgroundColor = 'transparent'
+      rootEl.style.minHeight = '100vh'
+    }
+    document.documentElement.style.backgroundColor = '#e8edf3'
+    return () => {
+      if (rootEl) {
+        rootEl.style.backgroundColor = prevRootBg
+        rootEl.style.minHeight = prevRootMinH
+      }
+      document.documentElement.style.backgroundColor = prevHtmlBg
+    }
+  }, [appLoginBg])
+
   useEffect(() => {
     // 로그인/세션 복원 직후 첫 진입 탭은 항상 공략 검색으로 고정
     setNav('search')
   }, [session.userId])
 
   const groupedResults = useMemo(() => groupMatchups(results), [results])
+
+  const masonryLayoutKey = useMemo(
+    () =>
+      JSON.stringify({
+        nav,
+        groups: groupedResults.map((g) => g.groupId),
+        editingId,
+        editSkillOrder,
+        editNotes,
+        editErr: editErr ?? '',
+        portraitKeys: Object.keys(portraitUrlByKey).length,
+        resultCount: results.length,
+        isAdmin,
+      }),
+    [
+      nav,
+      groupedResults,
+      editingId,
+      editSkillOrder,
+      editNotes,
+      editErr,
+      portraitUrlByKey,
+      results.length,
+      isAdmin,
+    ],
+  )
+
+  const searchMasonryRef = useMasonrySearchLayout(masonryLayoutKey)
+
   const rankRowsForView = useMemo(() => {
     const top20 = rankRows.slice(0, 20)
     const me = rankRows.find((r) => r.userId === session.userId)
@@ -1369,7 +1420,7 @@ export function GuideApp({ session, onLogout }: Props) {
                     조건에 맞는 공략이 없습니다.
                   </p>
                 ) : (
-                  <div className="guide-grid guide-grid--results">
+                  <div ref={searchMasonryRef} className="guide-masonry-results">
                     {groupedResults.map((g) => {
                       const h = g.header
                       const sumW = g.strategies.reduce((s, x) => s + x.win, 0)
