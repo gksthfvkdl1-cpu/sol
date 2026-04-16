@@ -19,9 +19,24 @@ export function loginBgKey(username: string): string {
   return canonicalKey(username)
 }
 
+function findBgKeyCaseInsensitive(usernameLower: string): string | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key || !key.startsWith(PREFIX)) continue
+      const suffix = key.slice(PREFIX.length)
+      if (suffix.toLowerCase() === usernameLower) return key
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 export function readLoginBgForUser(username: string): string | null {
   const t = username.trim()
   if (!t) return null
+  const lower = t.toLowerCase()
   try {
     const canonical = localStorage.getItem(canonicalKey(t))
     if (canonical) return canonical
@@ -34,6 +49,19 @@ export function readLoginBgForUser(username: string): string | null {
         /* 이전 키 → 소문자 키 이전 실패 시에도 leg 는 반환 */
       }
       return leg
+    }
+    const loose = findBgKeyCaseInsensitive(lower)
+    if (loose) {
+      const val = localStorage.getItem(loose)
+      if (val) {
+        try {
+          localStorage.setItem(canonicalKey(t), val)
+          if (loose !== canonicalKey(t)) localStorage.removeItem(loose)
+        } catch {
+          /* ignore migration */
+        }
+        return val
+      }
     }
     return null
   } catch {
@@ -57,6 +85,8 @@ export function clearLoginBgForUser(username: string): void {
   try {
     localStorage.removeItem(canonicalKey(t))
     localStorage.removeItem(legacyKey(t))
+    const loose = findBgKeyCaseInsensitive(t.toLowerCase())
+    if (loose) localStorage.removeItem(loose)
   } catch {
     /* ignore */
   }

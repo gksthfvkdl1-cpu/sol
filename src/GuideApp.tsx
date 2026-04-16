@@ -438,6 +438,13 @@ export function GuideApp({ session, onLogout }: Props) {
     setAppLoginBg(readLoginBgForUser(session.username))
   }, [session.username])
 
+  /** 탭 포커스 시 재조회(다른 탭에서 저장한 경우 등) */
+  useEffect(() => {
+    const sync = () => setAppLoginBg(readLoginBgForUser(session.username))
+    window.addEventListener('focus', sync)
+    return () => window.removeEventListener('focus', sync)
+  }, [session.username])
+
   /** 커스텀 배경 시 #root 기본 배경이 이미지·앱 루트를 가리지 않도록 (모든 메뉴 탭에서 동일) */
   useEffect(() => {
     if (!appLoginBg) return
@@ -449,7 +456,7 @@ export function GuideApp({ session, onLogout }: Props) {
       rootEl.style.backgroundColor = 'transparent'
       rootEl.style.minHeight = '100vh'
     }
-    document.documentElement.style.backgroundColor = '#e8edf3'
+    document.documentElement.style.backgroundColor = '#fff'
     return () => {
       if (rootEl) {
         rootEl.style.backgroundColor = prevRootBg
@@ -1118,6 +1125,7 @@ export function GuideApp({ session, onLogout }: Props) {
           appLoginBg ? 'guide-shell guide-shell--login-bg' : 'guide-shell'
         }
       >
+      <div className="guide-app-main-column">
       <nav className="guide-nav" aria-label="메인 메뉴">
         {navBtn('search', '공략 검색')}
         {navBtn('stats', '공격 통계')}
@@ -2076,6 +2084,7 @@ export function GuideApp({ session, onLogout }: Props) {
             </form>
           </section>
         )}
+      </div>
       </div>
       </div>
     </div>

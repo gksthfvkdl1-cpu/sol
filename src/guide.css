@@ -7,9 +7,9 @@
   min-height: 100vh;
 }
 
-/* 로그인 후 커스텀 배경 시: 로그인 화면과 동일하게 앱 기본 회색(#e8edf3)을 베이스로 둠 */
+/* 커스텀 배경 시 레터박스·페이지 베이스는 흰색(로그인 화면과 동일 톤) */
 .guide-app-root--custom-bg {
-  background: #e8edf3;
+  background: #fff;
 }
 
 .guide-shell--login-bg {
@@ -41,9 +41,18 @@
   border-color: #64748b;
 }
 
+/* 네비·본문 바깥(와이드 화면 좌우)만 배경 이미지가 비치도록, 기본 페이지는 흰색 */
+.guide-app-main-column {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: #fff;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
 .guide-shell {
   min-height: 100vh;
-  background: #e8edf3;
+  background: #fff;
   color: #1e293b;
   --guide-text: #0f172a;
   --guide-text-soft: #334155;
@@ -167,6 +176,7 @@
   max-width: 1100px;
   margin: 0 auto;
   padding: 1.25rem 1rem 2.5rem;
+  background: #fff;
 }
 
 @media (max-width: 640px) {
