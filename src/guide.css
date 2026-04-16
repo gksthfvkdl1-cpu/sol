@@ -1141,10 +1141,11 @@
 }
 
 /* 로그인 게이트: 기본 흰 배경, 선택 시 이미지 전체 표시(contain) + 뷰포트 채움 */
+/* 로그인·회원가입 게이트: 기본/초기화 배경은 흰색 */
 .gate-root {
   position: relative;
   min-height: 100vh;
-  background: #e8edf3;
+  background: #fff;
 }
 
 .gate-bg-image {
@@ -1156,7 +1157,7 @@
   object-fit: contain;
   object-position: center;
   pointer-events: none;
-  background: #e8edf3;
+  background: #fff;
   /* 작은 이미지도 뷰포트 안에서 최대한 확대(contain), 확대 시 부드럽게 */
   image-rendering: auto;
   -ms-interpolation-mode: bicubic;
