@@ -85,6 +85,37 @@ const SIEGE_DAYS: Array<{ value: number; label: string }> = [
   { value: 7, label: '일' },
 ]
 
+/** 한국 날짜 기준 YYYY-MM-DD */
+function formatDateYmdSeoul(iso: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) {
+    const s = iso.trim()
+    return s.length >= 10 ? s.slice(0, 10) : s
+  }
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(t))
+}
+
+/** 내용 수정 반영 후에는 `수정일자`, 그 외는 `등록일자` (승·패 투표만으로는 바뀌지 않음) */
+function matchupDateCaption(m: MatchupRow): string | null {
+  const c = m.created_at?.trim()
+  const u = m.updated_at?.trim()
+  if (!c && !u) return null
+  if (!c || !u) {
+    return `등록일자 : ${formatDateYmdSeoul(c || u || '')}`
+  }
+  const ct = new Date(c).getTime()
+  const ut = new Date(u).getTime()
+  if (ut > ct) {
+    return `수정일자 : ${formatDateYmdSeoul(u)}`
+  }
+  return `등록일자 : ${formatDateYmdSeoul(c)}`
+}
+
 function winRatePct(win: number, lose: number): string {
   const t = Number(win) + Number(lose)
   if (t <= 0) return '—'
@@ -138,6 +169,10 @@ function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
     author_name: r.author_name != null ? String(r.author_name) : undefined,
     author_username:
       r.author_username != null ? String(r.author_username) : undefined,
+    created_at:
+      r.created_at != null ? String(r.created_at) : undefined,
+    updated_at:
+      r.updated_at != null ? String(r.updated_at) : undefined,
   }
 }
 
@@ -1329,7 +1364,9 @@ export function GuideApp({ session, onLogout }: Props) {
                               승률 {winRatePct(sumW, sumL)}
                             </span>
                           </div>
-                          {g.strategies.map((m, idx) => (
+                          {g.strategies.map((m, idx) => {
+                            const dateCaption = matchupDateCaption(m)
+                            return (
                             <div
                               key={m.id}
                               className={
@@ -1461,18 +1498,26 @@ export function GuideApp({ session, onLogout }: Props) {
                                 </button>
                               </div>
                               <footer className="guide-match-foot">
-                                <span>
-                                  {m.win}승 {m.lose}패
-                                </span>
-                                <span>
-                                  By{' '}
-                                  {m.author_name ||
-                                    m.author_username ||
-                                    `user-${m.author_id.slice(0, 8)}`}
-                                </span>
+                                {dateCaption ? (
+                                  <div className="guide-match-foot-date">
+                                    {dateCaption}
+                                  </div>
+                                ) : null}
+                                <div className="guide-match-foot-row">
+                                  <span>
+                                    {m.win}승 {m.lose}패
+                                  </span>
+                                  <span>
+                                    By{' '}
+                                    {m.author_name ||
+                                      m.author_username ||
+                                      `user-${m.author_id.slice(0, 8)}`}
+                                  </span>
+                                </div>
                               </footer>
                             </div>
-                          ))}
+                            )
+                          })}
                         </article>
                       )
                     })}

@@ -15,4 +15,7 @@ export type MatchupRow = {
   author_id: string
   author_name?: string
   author_username?: string
+  /** ISO 시각 (DB `search_matchups` 등) */
+  created_at?: string
+  updated_at?: string
 }

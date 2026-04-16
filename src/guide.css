@@ -838,6 +838,18 @@
   font-size: 0.72rem;
   color: #64748b;
   display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.guide-match-foot-date {
+  font-size: 0.7rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.guide-match-foot-row {
+  display: flex;
   justify-content: space-between;
   gap: 0.5rem;
 }
