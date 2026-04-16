@@ -1,5 +1,45 @@
 /* 길드전 정답지 스타일 */
 /* 카드·폼은 항상 라이트 톤 — 시스템 다크모드에서도 라벨/입력 대비 유지 */
+
+/* 로그인에서 저장한 배경을 메인(로그인 후) 화면에도 표시 */
+.guide-app-root {
+  position: relative;
+  min-height: 100vh;
+}
+
+.guide-app-root--custom-bg {
+  background: #fff;
+}
+
+.guide-shell--login-bg {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.guide-bg-reset-btn {
+  position: fixed;
+  top: max(0.45rem, env(safe-area-inset-top, 0px));
+  left: max(0.45rem, env(safe-area-inset-left, 0px));
+  z-index: 50;
+  margin: 0;
+  padding: 0.38rem 0.62rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: rgb(255 255 255 / 0.95);
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.12);
+}
+
+.guide-bg-reset-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
 .guide-shell {
   min-height: 100vh;
   background: #e8edf3;
@@ -419,19 +459,22 @@
 
 /*
   검색 결과: CSS Grid 행 우선(왼쪽→오른쪽, 위→아래).
-  multi-column 은 카드 높이가 다르면 아래 줄이 비는 현상이 나와 Grid 로 통일.
+  align-items: start 는 같은 행에서 짧은 카드 아래에 그리드 셀 빈 공간(회색)이 남고,
+  다음 행 카드 헤더(VS·승률)가 그 아래에 붙어 헤더가 떨어진 것처럼 보이므로 stretch 로 통일.
   최대 3열(넓은 화면에서도 4열 사용 안 함).
 */
 .guide-grid--results {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.85rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .guide-grid--results .guide-match-card {
   margin: 0;
   min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 960px) {

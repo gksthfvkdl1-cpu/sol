@@ -14,6 +14,10 @@ import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
+import {
+  clearLoginBgForUser,
+  readLoginBgForUser,
+} from './loginBgStorage.ts'
 import { supabase } from './supabase/client.ts'
 
 type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
@@ -369,6 +373,9 @@ export function GuideApp({ session, onLogout }: Props) {
   const [regBusy, setRegBusy] = useState(false)
   const [profileName, setProfileName] = useState(session.displayName)
 
+  /** 로그인 화면에서 저장한 아이디별 배경을 메인 화면에도 동일 적용 */
+  const [appLoginBg, setAppLoginBg] = useState<string | null>(null)
+
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editSkillOrder, setEditSkillOrder] = useState('')
   const [editNotes, setEditNotes] = useState('')
@@ -423,6 +430,10 @@ export function GuideApp({ session, onLogout }: Props) {
   useEffect(() => {
     setProfileName(session.displayName)
   }, [session.displayName])
+
+  useEffect(() => {
+    setAppLoginBg(readLoginBgForUser(session.username))
+  }, [session.username])
 
   useEffect(() => {
     // 로그인/세션 복원 직후 첫 진입 탭은 항상 공략 검색으로 고정
@@ -1017,8 +1028,40 @@ export function GuideApp({ session, onLogout }: Props) {
     </button>
   )
 
+  const resetAppBackground = () => {
+    clearLoginBgForUser(session.username)
+    setAppLoginBg(null)
+  }
+
   return (
-    <div className="guide-shell">
+    <div
+      className={
+        appLoginBg
+          ? 'guide-app-root guide-app-root--custom-bg'
+          : 'guide-app-root'
+      }
+    >
+      {appLoginBg ? (
+        <img
+          className="gate-bg-image"
+          src={appLoginBg}
+          alt=""
+          decoding="async"
+        />
+      ) : null}
+      <button
+        type="button"
+        className="guide-bg-reset-btn"
+        onClick={resetAppBackground}
+        aria-label="저장된 배경 이미지를 지우고 기본 배경으로 되돌립니다"
+      >
+        배경초기화
+      </button>
+      <div
+        className={
+          appLoginBg ? 'guide-shell guide-shell--login-bg' : 'guide-shell'
+        }
+      >
       <nav className="guide-nav" aria-label="메인 메뉴">
         {navBtn('search', '공략 검색')}
         {navBtn('stats', '공격 통계')}
@@ -1977,6 +2020,7 @@ export function GuideApp({ session, onLogout }: Props) {
             </form>
           </section>
         )}
+      </div>
       </div>
     </div>
   )
