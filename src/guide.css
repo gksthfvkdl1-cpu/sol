@@ -1,58 +1,9 @@
 /* 길드전 정답지 스타일 */
 /* 카드·폼은 항상 라이트 톤 — 시스템 다크모드에서도 라벨/입력 대비 유지 */
 
-/* 로그인에서 저장한 배경을 메인(로그인 후) 화면에도 표시 */
-.guide-app-root {
-  position: relative;
-  min-height: 100vh;
-}
-
-/* 커스텀 배경 시 레터박스·페이지 베이스는 흰색(로그인 화면과 동일 톤) */
-.guide-app-root--custom-bg {
-  background: #fff;
-}
-
-.guide-shell--login-bg {
-  position: relative;
-  z-index: 1;
-  background: transparent;
-}
-
-.guide-bg-reset-btn {
-  position: fixed;
-  top: max(0.5rem, env(safe-area-inset-top, 0px));
-  left: max(0.5rem, env(safe-area-inset-left, 0px));
-  z-index: 50;
-  margin: 0;
-  padding: 0.55rem 0.95rem;
-  border-radius: 10px;
-  border: 1px solid #94a3b8;
-  background: rgb(255 255 255 / 0.96);
-  color: #1e293b;
-  font-size: 0.875rem;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgb(15 23 42 / 0.14);
-}
-
-.guide-bg-reset-btn:hover {
-  background: #fff;
-  border-color: #64748b;
-}
-
-/* 네비·본문 바깥(와이드 화면 좌우)만 배경 이미지가 비치도록, 기본 페이지는 흰색 */
-.guide-app-main-column {
-  max-width: 1100px;
-  margin: 0 auto;
-  background: #fff;
-  min-height: 100%;
-  box-sizing: border-box;
-}
-
 .guide-shell {
   min-height: 100vh;
-  background: #fff;
+  background: #f4f7fb;
   color: #1e293b;
   --guide-text: #0f172a;
   --guide-text-soft: #334155;
@@ -176,7 +127,6 @@
   max-width: 1100px;
   margin: 0 auto;
   padding: 1.25rem 1rem 2.5rem;
-  background: #fff;
 }
 
 @media (max-width: 640px) {
@@ -1150,12 +1100,11 @@
   color: #64748b;
 }
 
-/* 로그인 게이트: 기본 흰 배경, 선택 시 이미지 전체 표시(contain) + 뷰포트 채움 */
-/* 로그인·회원가입 게이트: 기본/초기화 배경은 흰색 */
+/* 로그인 게이트: 기본 배경 #f4f7fb, 선택 시 이미지(contain) + 레터박스 동일 톤 */
 .gate-root {
   position: relative;
   min-height: 100vh;
-  background: #fff;
+  background: #f4f7fb;
 }
 
 .gate-bg-image {
@@ -1167,7 +1116,7 @@
   object-fit: contain;
   object-position: center;
   pointer-events: none;
-  background: #fff;
+  background: #f4f7fb;
   /* 작은 이미지도 뷰포트 안에서 최대한 확대(contain), 확대 시 부드럽게 */
   image-rendering: auto;
   -ms-interpolation-mode: bicubic;

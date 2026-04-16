@@ -14,10 +14,6 @@ import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
-import {
-  clearLoginBgForUser,
-  readLoginBgForUser,
-} from './loginBgStorage.ts'
 import { supabase } from './supabase/client.ts'
 import { useMasonrySearchLayout } from './useMasonrySearchLayout.ts'
 
@@ -376,9 +372,6 @@ export function GuideApp({ session, onLogout }: Props) {
   const [regBusy, setRegBusy] = useState(false)
   const [profileName, setProfileName] = useState(session.displayName)
 
-  /** 로그인 화면에서 저장한 아이디별 배경을 메인 화면에도 동일 적용 */
-  const [appLoginBg, setAppLoginBg] = useState<string | null>(null)
-
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editSkillOrder, setEditSkillOrder] = useState('')
   const [editNotes, setEditNotes] = useState('')
@@ -433,38 +426,6 @@ export function GuideApp({ session, onLogout }: Props) {
   useEffect(() => {
     setProfileName(session.displayName)
   }, [session.displayName])
-
-  useEffect(() => {
-    setAppLoginBg(readLoginBgForUser(session.username))
-  }, [session.username])
-
-  /** 탭 포커스 시 재조회(다른 탭에서 저장한 경우 등) */
-  useEffect(() => {
-    const sync = () => setAppLoginBg(readLoginBgForUser(session.username))
-    window.addEventListener('focus', sync)
-    return () => window.removeEventListener('focus', sync)
-  }, [session.username])
-
-  /** 커스텀 배경 시 #root 기본 배경이 이미지·앱 루트를 가리지 않도록 (모든 메뉴 탭에서 동일) */
-  useEffect(() => {
-    if (!appLoginBg) return
-    const rootEl = document.getElementById('root')
-    const prevRootBg = rootEl?.style.backgroundColor ?? ''
-    const prevRootMinH = rootEl?.style.minHeight ?? ''
-    const prevHtmlBg = document.documentElement.style.backgroundColor
-    if (rootEl) {
-      rootEl.style.backgroundColor = 'transparent'
-      rootEl.style.minHeight = '100vh'
-    }
-    document.documentElement.style.backgroundColor = '#fff'
-    return () => {
-      if (rootEl) {
-        rootEl.style.backgroundColor = prevRootBg
-        rootEl.style.minHeight = prevRootMinH
-      }
-      document.documentElement.style.backgroundColor = prevHtmlBg
-    }
-  }, [appLoginBg])
 
   useEffect(() => {
     // 로그인/세션 복원 직후 첫 진입 탭은 항상 공략 검색으로 고정
@@ -1091,41 +1052,8 @@ export function GuideApp({ session, onLogout }: Props) {
     </button>
   )
 
-  const resetAppBackground = () => {
-    clearLoginBgForUser(session.username)
-    setAppLoginBg(null)
-  }
-
   return (
-    <div
-      className={
-        appLoginBg
-          ? 'guide-app-root guide-app-root--custom-bg'
-          : 'guide-app-root'
-      }
-    >
-      {appLoginBg ? (
-        <img
-          className="gate-bg-image"
-          src={appLoginBg}
-          alt=""
-          decoding="async"
-        />
-      ) : null}
-      <button
-        type="button"
-        className="guide-bg-reset-btn"
-        onClick={resetAppBackground}
-        aria-label="저장된 배경 이미지를 지우고 기본 배경으로 되돌립니다"
-      >
-        배경초기화
-      </button>
-      <div
-        className={
-          appLoginBg ? 'guide-shell guide-shell--login-bg' : 'guide-shell'
-        }
-      >
-      <div className="guide-app-main-column">
+    <div className="guide-shell">
       <nav className="guide-nav" aria-label="메인 메뉴">
         {navBtn('search', '공략 검색')}
         {navBtn('stats', '공격 통계')}
@@ -2084,8 +2012,6 @@ export function GuideApp({ session, onLogout }: Props) {
             </form>
           </section>
         )}
-      </div>
-      </div>
       </div>
     </div>
   )

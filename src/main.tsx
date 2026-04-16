@@ -32,7 +32,7 @@ class RootErrorBoundary extends Component<
             minHeight: '100vh',
             padding: 24,
             fontFamily: 'system-ui, sans-serif',
-            background: '#f8fafc',
+            background: '#f4f7fb',
             color: '#0f172a',
           }}
         >
