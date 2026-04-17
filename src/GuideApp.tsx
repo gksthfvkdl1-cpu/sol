@@ -386,6 +386,10 @@ export function GuideApp({ session, onLogout }: Props) {
   const [editRequests, setEditRequests] = useState<EditRequestRow[]>([])
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminErr, setAdminErr] = useState<string | null>(null)
+  const [restoreMatchupId, setRestoreMatchupId] = useState('')
+  const [restoreAsOfDate, setRestoreAsOfDate] = useState('')
+  const [restoreTrimFuture, setRestoreTrimFuture] = useState(true)
+  const [restoreBusy, setRestoreBusy] = useState(false)
 
   const loadHeroes = useCallback(async () => {
     try {
@@ -931,6 +935,49 @@ export function GuideApp({ session, onLogout }: Props) {
       await loadAdminRequests()
     } catch (err) {
       setAdminErr(err instanceof Error ? err.message : '처리 실패')
+    }
+  }
+
+  const applyMatchupTotalsAsOfDate = async () => {
+    setAdminErr(null)
+    setAdminMsg(null)
+    const id = parseInt(restoreMatchupId.trim(), 10)
+    if (!Number.isFinite(id) || id < 1) {
+      setAdminErr('유효한 매치업 ID를 입력하세요.')
+      return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(restoreAsOfDate.trim())) {
+      setAdminErr('기준일은 YYYY-MM-DD 형식이어야 합니다.')
+      return
+    }
+    const tok = getSessionToken()
+    if (!tok) {
+      setAdminErr('세션이 없습니다.')
+      return
+    }
+    setRestoreBusy(true)
+    try {
+      const { data, error } = await supabase.rpc('admin_apply_matchup_totals_as_of_date', {
+        p_session_token: tok,
+        p_matchup_id: id,
+        p_as_of_date: restoreAsOfDate.trim(),
+        p_trim_future_daily: restoreTrimFuture,
+      })
+      if (error) {
+        setAdminErr(error.message)
+        return
+      }
+      const row = data as { win?: number; lose?: number } | null
+      const w = row?.win ?? '—'
+      const l = row?.lose ?? '—'
+      setAdminMsg(`매치업 ${id}의 승·패를 기준일까지 반영했습니다. (승 ${w} / 패 ${l})`)
+      if (searched) {
+        void runSearch()
+      }
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : '처리 실패')
+    } finally {
+      setRestoreBusy(false)
     }
   }
 
@@ -1862,6 +1909,62 @@ export function GuideApp({ session, onLogout }: Props) {
                 ))}
               </div>
             )}
+
+            <h3 className="guide-section-label" style={{ marginBottom: '0.4rem' }}>
+              투표 누적 복구 (일별 집계)
+            </h3>
+            <p className="guide-notes" style={{ marginTop: 0, marginBottom: '0.65rem' }}>
+              서울 달력 기준 일별 승·패 합으로 해당 매치업의 누적과 주간표를 맞춥니다. 일별 데이터가 7일
+              이상 지난 행은 DB에서 주기적으로 지우면 그 이전 날짜로는 복구할 수 없습니다.
+            </p>
+            <div
+              className="guide-register-grid"
+              style={{ maxWidth: '22rem', marginBottom: '0.75rem' }}
+            >
+              <label className="guide-skill" htmlFor="restore-mid">
+                매치업 ID
+              </label>
+              <input
+                id="restore-mid"
+                type="text"
+                inputMode="numeric"
+                className="guide-textarea"
+                style={{ minHeight: '2.25rem', resize: 'none' }}
+                value={restoreMatchupId}
+                onChange={(e) => setRestoreMatchupId(e.target.value)}
+                placeholder="예: 42"
+                autoComplete="off"
+              />
+              <label className="guide-skill" htmlFor="restore-asof">
+                기준일 (YYYY-MM-DD)
+              </label>
+              <input
+                id="restore-asof"
+                type="text"
+                className="guide-textarea"
+                style={{ minHeight: '2.25rem', resize: 'none' }}
+                value={restoreAsOfDate}
+                onChange={(e) => setRestoreAsOfDate(e.target.value)}
+                placeholder="예: 2026-04-15"
+                autoComplete="off"
+              />
+              <label className="guide-skill" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={restoreTrimFuture}
+                  onChange={(e) => setRestoreTrimFuture(e.target.checked)}
+                />
+                기준일 다음 날짜의 일별 행 삭제
+              </label>
+            </div>
+            <button
+              type="button"
+              className="guide-btn-ghost"
+              disabled={restoreBusy}
+              onClick={() => void applyMatchupTotalsAsOfDate()}
+            >
+              {restoreBusy ? '처리 중…' : '기준일까지 누적 반영'}
+            </button>
               </>
             ) : null}
           </section>
