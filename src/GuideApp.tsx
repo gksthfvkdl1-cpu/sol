@@ -31,6 +31,7 @@ type EditRequestRow = {
   matchup_id: number
   skill_order: string
   notes: string
+  pet?: string
   created_at: string
   requester_username: string
   requester_display_name?: string
@@ -374,6 +375,7 @@ export function GuideApp({ session, onLogout }: Props) {
 
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editSkillOrder, setEditSkillOrder] = useState('')
+  const [editPet, setEditPet] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState<string | null>(null)
@@ -442,6 +444,7 @@ export function GuideApp({ session, onLogout }: Props) {
         groups: groupedResults.map((g) => g.groupId),
         editingId,
         editSkillOrder,
+        editPet,
         editNotes,
         editErr: editErr ?? '',
         portraitKeys: Object.keys(portraitUrlByKey).length,
@@ -454,6 +457,7 @@ export function GuideApp({ session, onLogout }: Props) {
       groupedResults,
       editingId,
       editSkillOrder,
+      editPet,
       editNotes,
       editErr,
       portraitUrlByKey,
@@ -737,6 +741,7 @@ export function GuideApp({ session, onLogout }: Props) {
   const startEdit = (m: MatchupRow) => {
     setEditingId(m.id)
     setEditSkillOrder(m.skill_order || '')
+    setEditPet(m.pet || '')
     setEditNotes(m.notes || '')
     setEditErr(null)
   }
@@ -744,6 +749,7 @@ export function GuideApp({ session, onLogout }: Props) {
   const cancelEdit = () => {
     setEditingId(null)
     setEditSkillOrder('')
+    setEditPet('')
     setEditNotes('')
     setEditErr(null)
   }
@@ -762,6 +768,7 @@ export function GuideApp({ session, onLogout }: Props) {
         p_matchup_id: id,
         p_skill_order: editSkillOrder.trim(),
         p_notes: editNotes.trim(),
+        p_pet: editPet.trim(),
       })
       if (error) {
         setEditErr(error.message)
@@ -1431,6 +1438,20 @@ export function GuideApp({ session, onLogout }: Props) {
                                       />
                                     </div>
                                     <div className="field">
+                                      <label htmlFor={`edit-pet-${m.id}`}>
+                                        펫
+                                      </label>
+                                      <input
+                                        id={`edit-pet-${m.id}`}
+                                        className="field-input"
+                                        value={editPet}
+                                        onChange={(e) =>
+                                          setEditPet(e.target.value)
+                                        }
+                                        placeholder="예: 델프 / 라드 / (공략 등록과 동일, 슬래시로 구분)"
+                                      />
+                                    </div>
+                                    <div className="field">
                                       <label htmlFor={`edit-notes-${m.id}`}>
                                         테스트 코멘트
                                       </label>
@@ -1815,6 +1836,9 @@ export function GuideApp({ session, onLogout }: Props) {
                       </p>
                       <p className="guide-notes" style={{ marginBottom: '0.4rem' }}>
                         스킬: {r.skill_order || '(비어 있음)'}
+                      </p>
+                      <p className="guide-notes" style={{ marginBottom: '0.4rem' }}>
+                        펫: {r.pet?.trim() ? r.pet : '(비어 있음)'}
                       </p>
                       <p className="guide-notes">테스트 코멘트: {r.notes || '(비어 있음)'}</p>
                     </div>
