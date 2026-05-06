@@ -40,6 +40,15 @@ type EditRequestRow = {
   defense3: string
 }
 
+type VoteUserDailyRow = {
+  user_id: string
+  username: string
+  display_name: string
+  win_cnt: number
+  lose_cnt: number
+  total_cnt: number
+}
+
 type AttackStatItem = {
   key: string
   defenseLabel: string
@@ -100,6 +109,15 @@ function formatDateYmdSeoul(iso: string): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(t))
+}
+
+function todayYmdSeoul(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 /** 내용 수정 반영 후에는 `수정일자`, 그 외는 `등록일자` (승·패 투표만으로는 바뀌지 않음) */
@@ -390,6 +408,10 @@ export function GuideApp({ session, onLogout }: Props) {
   const [restoreAsOfDate, setRestoreAsOfDate] = useState('')
   const [restoreTrimFuture, setRestoreTrimFuture] = useState(true)
   const [restoreBusy, setRestoreBusy] = useState(false)
+  const [voteDailyDate, setVoteDailyDate] = useState<string>(() => todayYmdSeoul())
+  const [voteDailyRows, setVoteDailyRows] = useState<VoteUserDailyRow[]>([])
+  const [voteDailyBusy, setVoteDailyBusy] = useState(false)
+  const [voteDailyErr, setVoteDailyErr] = useState<string | null>(null)
 
   const loadHeroes = useCallback(async () => {
     try {
@@ -716,9 +738,11 @@ export function GuideApp({ session, onLogout }: Props) {
         : window.confirm('정말 패배 하셨습니까? 공부하세요')
     if (!ok) return
     try {
+      const tok = getSessionToken()
       const { data, error } = await supabase.rpc('vote_matchup', {
         p_id: id,
         p_outcome: outcome,
+        p_session_token: tok,
       })
       if (error || !data) return
       const row = data as Record<string, unknown>
@@ -821,11 +845,56 @@ export function GuideApp({ session, onLogout }: Props) {
     }
   }, [isAdmin])
 
+  const loadVoteUserDaily = useCallback(async () => {
+    if (!isAdmin) return
+    setVoteDailyErr(null)
+    setVoteDailyBusy(true)
+    try {
+      const tok = getSessionToken()
+      if (!tok) {
+        setVoteDailyErr('세션이 없습니다.')
+        setVoteDailyRows([])
+        return
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(voteDailyDate.trim())) {
+        setVoteDailyErr('조회일은 YYYY-MM-DD 형식이어야 합니다.')
+        setVoteDailyRows([])
+        return
+      }
+      const { data, error } = await supabase.rpc('admin_list_vote_user_daily', {
+        p_session_token: tok,
+        p_vote_date: voteDailyDate.trim(),
+      })
+      if (error) {
+        setVoteDailyErr(error.message)
+        setVoteDailyRows([])
+        return
+      }
+      const rows = (data ?? []) as Record<string, unknown>[]
+      setVoteDailyRows(
+        rows.map((r) => ({
+          user_id: String(r.user_id ?? ''),
+          username: String(r.username ?? ''),
+          display_name: String(r.display_name ?? ''),
+          win_cnt: Number(r.win_cnt ?? 0),
+          lose_cnt: Number(r.lose_cnt ?? 0),
+          total_cnt: Number(r.total_cnt ?? 0),
+        })),
+      )
+    } catch (err) {
+      setVoteDailyErr(err instanceof Error ? err.message : '조회 실패')
+      setVoteDailyRows([])
+    } finally {
+      setVoteDailyBusy(false)
+    }
+  }, [isAdmin, voteDailyDate])
+
   useEffect(() => {
     if (nav === 'admin' && isAdmin) {
       void loadAdminRequests()
+      void loadVoteUserDaily()
     }
-  }, [isAdmin, loadAdminRequests, nav])
+  }, [isAdmin, loadAdminRequests, loadVoteUserDaily, nav])
 
   useEffect(() => {
     if (nav === 'stats' || nav === 'rank') {
@@ -880,6 +949,7 @@ export function GuideApp({ session, onLogout }: Props) {
     setSiegeRegisterOpen(false)
     setSiegeRegErr(null)
     setSiegeRegMsg(null)
+    setVoteDailyErr(null)
   }, [nav])
 
   const processSignupRequest = async (userId: string, action: 'approve' | 'reject') => {
@@ -1965,6 +2035,65 @@ export function GuideApp({ session, onLogout }: Props) {
             >
               {restoreBusy ? '처리 중…' : '기준일까지 누적 반영'}
             </button>
+
+            <h3 className="guide-section-label" style={{ marginBottom: '0.4rem', marginTop: '1.1rem' }}>
+              사용자 일일 승·패 클릭 조회
+            </h3>
+            <p className="guide-notes" style={{ marginTop: 0, marginBottom: '0.65rem' }}>
+              공략 검색에서 누른 승리/패배 버튼 기록을 사용자별로 일일 집계해 보여줍니다.
+            </p>
+            <div
+              className="guide-register-grid"
+              style={{ maxWidth: '22rem', marginBottom: '0.75rem' }}
+            >
+              <label className="guide-skill" htmlFor="vote-daily-date">
+                조회일 (YYYY-MM-DD)
+              </label>
+              <input
+                id="vote-daily-date"
+                type="text"
+                className="guide-textarea"
+                style={{ minHeight: '2.25rem', resize: 'none' }}
+                value={voteDailyDate}
+                onChange={(e) => setVoteDailyDate(e.target.value)}
+                placeholder="예: 2026-05-06"
+                autoComplete="off"
+              />
+            </div>
+            <div className="guide-match-actions" style={{ padding: '0 0 0.8rem' }}>
+              <button
+                type="button"
+                className="guide-btn-ghost"
+                onClick={() => void loadVoteUserDaily()}
+                disabled={voteDailyBusy}
+              >
+                {voteDailyBusy ? '조회 중…' : '검색'}
+              </button>
+            </div>
+            {voteDailyErr ? (
+              <p className="form-error" role="alert">
+                {voteDailyErr}
+              </p>
+            ) : null}
+            {!voteDailyBusy && voteDailyRows.length === 0 ? (
+              <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                선택한 날짜의 투표 기록이 없습니다.
+              </p>
+            ) : null}
+            {voteDailyRows.length > 0 ? (
+              <div className="guide-rank-list" role="table" aria-label="사용자 일일 승패 집계 표">
+                {voteDailyRows.map((r) => (
+                  <div key={r.user_id} className="guide-rank-row" role="row">
+                    <span className="guide-rank-col-name" role="cell">
+                      {r.display_name || r.username}
+                    </span>
+                    <span className="guide-rank-col-count" role="cell">
+                      {r.win_cnt}승 / {r.lose_cnt}패 / {r.total_cnt}회
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
               </>
             ) : null}
           </section>
