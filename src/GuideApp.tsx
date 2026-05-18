@@ -12,12 +12,20 @@ import type { MatchupRow } from './types/matchup.ts'
 import './App.css'
 import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
+import { AutoRegisterPanel } from './AutoRegisterPanel.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
 import { supabase } from './supabase/client.ts'
 import { useMasonrySearchLayout } from './useMasonrySearchLayout.ts'
 
-type NavId = 'search' | 'stats' | 'siege' | 'register' | 'rank' | 'admin'
+type NavId =
+  | 'search'
+  | 'stats'
+  | 'siege'
+  | 'register'
+  | 'auto'
+  | 'rank'
+  | 'admin'
 
 type PendingProfileRow = {
   id: string
@@ -323,6 +331,7 @@ export function GuideApp({ session, onLogout }: Props) {
   const [portraitUrlByKey, setPortraitUrlByKey] = useState<Record<string, string>>(
     {},
   )
+  const [iconUrlByKey, setIconUrlByKey] = useState<Record<string, string>>({})
 
   const [d1, setD1] = useState('')
   const [d2, setD2] = useState('')
@@ -431,15 +440,27 @@ export function GuideApp({ session, onLogout }: Props) {
       const { data, error } = await supabase.rpc('hero_portraits_map')
       if (error || !data) {
         setPortraitUrlByKey({})
+        setIconUrlByKey({})
         return
       }
-      const next: Record<string, string> = {}
-      for (const row of data as { hero_key: string; image_url: string }[]) {
-        next[String(row.hero_key)] = String(row.image_url)
+      const nextPortraits: Record<string, string> = {}
+      const nextIcons: Record<string, string> = {}
+      for (const row of data as {
+        hero_key: string
+        image_url: string
+        icon_url?: string | null
+      }[]) {
+        const key = String(row.hero_key)
+        const portrait = String(row.image_url ?? '')
+        const icon = String(row.icon_url ?? '')
+        if (portrait) nextPortraits[key] = portrait
+        if (icon) nextIcons[key] = icon
       }
-      setPortraitUrlByKey(next)
+      setPortraitUrlByKey(nextPortraits)
+      setIconUrlByKey(nextIcons)
     } catch {
       setPortraitUrlByKey({})
+      setIconUrlByKey({})
     }
   }, [])
 
@@ -1183,6 +1204,7 @@ export function GuideApp({ session, onLogout }: Props) {
         {navBtn('stats', '공격 통계')}
         {navBtn('siege', '공성전')}
         {navBtn('register', '공략 등록')}
+        {navBtn('auto', '전적 자동 등록')}
         {navBtn('rank', '기여 랭킹')}
         {navBtn('admin', '등록/수정')}
       </nav>
@@ -2097,6 +2119,19 @@ export function GuideApp({ session, onLogout }: Props) {
               </>
             ) : null}
           </section>
+        )}
+
+        {nav === 'auto' && (
+          <AutoRegisterPanel
+            sessionToken={getSessionToken()}
+            heroOptions={heroOptions}
+            portraitUrlByKey={portraitUrlByKey}
+            iconUrlByKey={iconUrlByKey}
+            onRegistered={() => {
+              void loadHeroes()
+              if (searched) void runSearch()
+            }}
+          />
         )}
 
         {nav === 'register' && (
