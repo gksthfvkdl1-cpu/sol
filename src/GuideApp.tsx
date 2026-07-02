@@ -51,6 +51,8 @@ type EditRequestRow = {
   skill_order: string
   notes: string
   pet?: string
+  equipment?: string
+  formation?: string
   created_at: string
   requester_username: string
   requester_display_name?: string
@@ -133,6 +135,15 @@ function splitTeamLabel(label: string): string[] {
     .filter(Boolean)
 }
 
+function splitThreeSlots(label: string): [string, string, string] {
+  const parts = splitTeamLabel(label)
+  return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? '']
+}
+
+function joinThreeSlots(a: string, b: string, c: string): string {
+  return [a, b, c].map((s) => s.trim()).filter(Boolean).join(' / ')
+}
+
 /** 공격1~3 이름 기준으로 스킬 순서 선택지 (각 영웅 × 1, 2) */
 function buildSkillOrderSelectOptions(
   attack1: string,
@@ -164,6 +175,8 @@ function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
     attack2: String(r.attack2 ?? ''),
     attack3: String(r.attack3 ?? ''),
     pet: String(r.pet ?? ''),
+    equipment: String(r.equipment ?? ''),
+    formation: String(r.formation ?? ''),
     skill_order: String(r.skill_order ?? ''),
     notes: String(r.notes ?? ''),
     win: Number(r.win ?? 0),
@@ -370,6 +383,12 @@ export function GuideApp({ session, onLogout }: Props) {
     pet1: '',
     pet2: '',
     pet3: '',
+    equipment1: '',
+    equipment2: '',
+    equipment3: '',
+    formation1: '',
+    formation2: '',
+    formation3: '',
     skillSlot1: '',
     skillSlot2: '',
     skillSlot3: '',
@@ -390,6 +409,12 @@ export function GuideApp({ session, onLogout }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editSkillOrder, setEditSkillOrder] = useState('')
   const [editPet, setEditPet] = useState('')
+  const [editEquipment1, setEditEquipment1] = useState('')
+  const [editEquipment2, setEditEquipment2] = useState('')
+  const [editEquipment3, setEditEquipment3] = useState('')
+  const [editFormation1, setEditFormation1] = useState('')
+  const [editFormation2, setEditFormation2] = useState('')
+  const [editFormation3, setEditFormation3] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState<string | null>(null)
@@ -488,6 +513,12 @@ export function GuideApp({ session, onLogout }: Props) {
         editingId,
         editSkillOrder,
         editPet,
+        editEquipment1,
+        editEquipment2,
+        editEquipment3,
+        editFormation1,
+        editFormation2,
+        editFormation3,
         editNotes,
         editErr: editErr ?? '',
         portraitKeys: Object.keys(portraitUrlByKey).length,
@@ -501,6 +532,12 @@ export function GuideApp({ session, onLogout }: Props) {
       editingId,
       editSkillOrder,
       editPet,
+      editEquipment1,
+      editEquipment2,
+      editEquipment3,
+      editFormation1,
+      editFormation2,
+      editFormation3,
       editNotes,
       editErr,
       portraitUrlByKey,
@@ -520,6 +557,12 @@ export function GuideApp({ session, onLogout }: Props) {
         editingId,
         editSkillOrder,
         editPet,
+        editEquipment1,
+        editEquipment2,
+        editEquipment3,
+        editFormation1,
+        editFormation2,
+        editFormation3,
         editNotes,
         editErr: editErr ?? '',
         portraitKeys: Object.keys(portraitUrlByKey).length,
@@ -533,6 +576,12 @@ export function GuideApp({ session, onLogout }: Props) {
       editingId,
       editSkillOrder,
       editPet,
+      editEquipment1,
+      editEquipment2,
+      editEquipment3,
+      editFormation1,
+      editFormation2,
+      editFormation3,
       editNotes,
       editErr,
       portraitUrlByKey,
@@ -877,6 +926,14 @@ export function GuideApp({ session, onLogout }: Props) {
     setEditingId(m.id)
     setEditSkillOrder(m.skill_order || '')
     setEditPet(m.pet || '')
+    const [eq1, eq2, eq3] = splitThreeSlots(m.equipment || '')
+    setEditEquipment1(eq1)
+    setEditEquipment2(eq2)
+    setEditEquipment3(eq3)
+    const [fm1, fm2, fm3] = splitThreeSlots(m.formation || '')
+    setEditFormation1(fm1)
+    setEditFormation2(fm2)
+    setEditFormation3(fm3)
     setEditNotes(m.notes || '')
     setEditErr(null)
   }
@@ -885,6 +942,12 @@ export function GuideApp({ session, onLogout }: Props) {
     setEditingId(null)
     setEditSkillOrder('')
     setEditPet('')
+    setEditEquipment1('')
+    setEditEquipment2('')
+    setEditEquipment3('')
+    setEditFormation1('')
+    setEditFormation2('')
+    setEditFormation3('')
     setEditNotes('')
     setEditErr(null)
   }
@@ -904,6 +967,8 @@ export function GuideApp({ session, onLogout }: Props) {
         p_skill_order: editSkillOrder.trim(),
         p_notes: editNotes.trim(),
         p_pet: editPet.trim(),
+        p_equipment: joinThreeSlots(editEquipment1, editEquipment2, editEquipment3),
+        p_formation: joinThreeSlots(editFormation1, editFormation2, editFormation3),
       })
       if (error) {
         setEditErr(error.message)
@@ -1043,6 +1108,12 @@ export function GuideApp({ session, onLogout }: Props) {
       pet1: '',
       pet2: '',
       pet3: '',
+      equipment1: '',
+      equipment2: '',
+      equipment3: '',
+      formation1: '',
+      formation2: '',
+      formation3: '',
       skillSlot1: '',
       skillSlot2: '',
       skillSlot3: '',
@@ -1108,6 +1179,9 @@ export function GuideApp({ session, onLogout }: Props) {
       )
       if (searched) {
         void runSearch()
+      }
+      if (myMatchupsOpen) {
+        void loadMyMatchups()
       }
       await loadAdminRequests()
     } catch (err) {
@@ -1201,6 +1275,8 @@ export function GuideApp({ session, onLogout }: Props) {
     const a2 = reg.attack2.trim()
     const a3 = reg.attack3.trim()
     const pets = [reg.pet1.trim(), reg.pet2.trim(), reg.pet3.trim()].filter(Boolean)
+    const equipment = [reg.equipment1.trim(), reg.equipment2.trim(), reg.equipment3.trim()].filter(Boolean)
+    const formation = [reg.formation1.trim(), reg.formation2.trim(), reg.formation3.trim()].filter(Boolean)
     if (!d1 || !d2 || !d3 || !a1 || !a2 || !a3) {
       setRegErr('방어1·방어2·방어3, 공격1·공격2·공격3을 모두 입력하세요.')
       return
@@ -1243,6 +1319,8 @@ export function GuideApp({ session, onLogout }: Props) {
         p_attack2: a2,
         p_attack3: a3,
         p_pet: pets.join(' / '),
+        p_equipment: equipment.join(' / '),
+        p_formation: formation.join(' / '),
         p_skill_order: skillOrderJoined,
         p_notes: reg.notes.trim(),
       })
@@ -1260,6 +1338,12 @@ export function GuideApp({ session, onLogout }: Props) {
         pet1: '',
         pet2: '',
         pet3: '',
+        equipment1: '',
+        equipment2: '',
+        equipment3: '',
+        formation1: '',
+        formation2: '',
+        formation3: '',
         skillSlot1: '',
         skillSlot2: '',
         skillSlot3: '',
@@ -1297,11 +1381,18 @@ export function GuideApp({ session, onLogout }: Props) {
     editingId,
     editSkillOrder,
     editPet,
+    editEquipment1,
+    editEquipment2,
+    editEquipment3,
+    editFormation1,
+    editFormation2,
+    editFormation3,
     editNotes,
     editErr,
     editBusy,
     isAdmin,
     deleteBusyId,
+    heroOptions,
     onStartEdit: startEdit,
     onCancelEdit: cancelEdit,
     onSaveEdit: saveEdit,
@@ -1309,6 +1400,12 @@ export function GuideApp({ session, onLogout }: Props) {
     onVote,
     onEditSkillOrderChange: setEditSkillOrder,
     onEditPetChange: setEditPet,
+    onEditEquipment1Change: setEditEquipment1,
+    onEditEquipment2Change: setEditEquipment2,
+    onEditEquipment3Change: setEditEquipment3,
+    onEditFormation1Change: setEditFormation1,
+    onEditFormation2Change: setEditFormation2,
+    onEditFormation3Change: setEditFormation3,
     onEditNotesChange: setEditNotes,
   }
 
@@ -2008,6 +2105,12 @@ export function GuideApp({ session, onLogout }: Props) {
                       </p>
                       <p className="guide-notes" style={{ marginBottom: '0.4rem' }}>
                         펫: {r.pet?.trim() ? r.pet : '(비어 있음)'}
+                      </p>
+                      <p className="guide-notes" style={{ marginBottom: '0.4rem' }}>
+                        장비: {r.equipment?.trim() ? r.equipment : '(비어 있음)'}
+                      </p>
+                      <p className="guide-notes" style={{ marginBottom: '0.4rem' }}>
+                        진형: {r.formation?.trim() ? r.formation : '(비어 있음)'}
                       </p>
                       <p className="guide-notes">테스트 코멘트: {r.notes || '(비어 있음)'}</p>
                     </div>

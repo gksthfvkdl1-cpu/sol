@@ -1,3 +1,4 @@
+import { AutocompleteField } from './AutocompleteField.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
 import type { MatchupRow } from './types/matchup.ts'
 
@@ -13,11 +14,18 @@ type Props = {
   editingId: number | null
   editSkillOrder: string
   editPet: string
+  editEquipment1: string
+  editEquipment2: string
+  editEquipment3: string
+  editFormation1: string
+  editFormation2: string
+  editFormation3: string
   editNotes: string
   editErr: string | null
   editBusy: boolean
   isAdmin: boolean
   deleteBusyId: number | null
+  heroOptions: string[]
   onStartEdit: (m: MatchupRow) => void
   onCancelEdit: () => void
   onSaveEdit: (id: number) => void
@@ -25,6 +33,12 @@ type Props = {
   onVote: (id: number, outcome: 'win' | 'lose') => void
   onEditSkillOrderChange: (value: string) => void
   onEditPetChange: (value: string) => void
+  onEditEquipment1Change: (value: string) => void
+  onEditEquipment2Change: (value: string) => void
+  onEditEquipment3Change: (value: string) => void
+  onEditFormation1Change: (value: string) => void
+  onEditFormation2Change: (value: string) => void
+  onEditFormation3Change: (value: string) => void
   onEditNotesChange: (value: string) => void
 }
 
@@ -76,11 +90,18 @@ export function MatchupGroupCard({
   editingId,
   editSkillOrder,
   editPet,
+  editEquipment1,
+  editEquipment2,
+  editEquipment3,
+  editFormation1,
+  editFormation2,
+  editFormation3,
   editNotes,
   editErr,
   editBusy,
   isAdmin,
   deleteBusyId,
+  heroOptions,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
@@ -88,6 +109,12 @@ export function MatchupGroupCard({
   onVote,
   onEditSkillOrderChange,
   onEditPetChange,
+  onEditEquipment1Change,
+  onEditEquipment2Change,
+  onEditEquipment3Change,
+  onEditFormation1Change,
+  onEditFormation2Change,
+  onEditFormation3Change,
   onEditNotesChange,
 }: Props) {
   const h = g.header
@@ -117,6 +144,26 @@ export function MatchupGroupCard({
               <span className="guide-badge-pet">펫</span>
               <HeroPortraitStrip
                 names={splitTeamLabel(h.pet)}
+                portraitUrlByKey={portraitUrlByKey}
+                fixedColumns={3}
+              />
+            </div>
+          ) : null}
+          {h.equipment.trim() ? (
+            <div className="guide-line guide-line--portraits">
+              <span className="guide-badge-equipment">장비</span>
+              <HeroPortraitStrip
+                names={splitTeamLabel(h.equipment)}
+                portraitUrlByKey={portraitUrlByKey}
+                fixedColumns={3}
+              />
+            </div>
+          ) : null}
+          {h.formation.trim() ? (
+            <div className="guide-line guide-line--portraits">
+              <span className="guide-badge-formation">진형</span>
+              <HeroPortraitStrip
+                names={splitTeamLabel(h.formation)}
                 portraitUrlByKey={portraitUrlByKey}
                 fixedColumns={3}
               />
@@ -156,7 +203,59 @@ export function MatchupGroupCard({
                       className="field-input"
                       value={editPet}
                       onChange={(e) => onEditPetChange(e.target.value)}
-                      placeholder="예: 델프 / 라드 / (공략 등록과 동일, 슬래시로 구분)"
+                      placeholder="예: 델프 / 라드 / (슬래시로 구분)"
+                    />
+                  </div>
+                  <div className="guide-register-grid" style={{ marginTop: '0.5rem' }}>
+                    <AutocompleteField
+                      id={`edit-eq1-${m.id}`}
+                      label="장비1"
+                      value={editEquipment1}
+                      onChange={onEditEquipment1Change}
+                      options={heroOptions}
+                      maxSuggestions={5}
+                    />
+                    <AutocompleteField
+                      id={`edit-eq2-${m.id}`}
+                      label="장비2"
+                      value={editEquipment2}
+                      onChange={onEditEquipment2Change}
+                      options={heroOptions}
+                      maxSuggestions={5}
+                    />
+                    <AutocompleteField
+                      id={`edit-eq3-${m.id}`}
+                      label="장비3"
+                      value={editEquipment3}
+                      onChange={onEditEquipment3Change}
+                      options={heroOptions}
+                      maxSuggestions={5}
+                    />
+                  </div>
+                  <div className="guide-register-grid" style={{ marginTop: '0.5rem' }}>
+                    <AutocompleteField
+                      id={`edit-fm1-${m.id}`}
+                      label="진형1"
+                      value={editFormation1}
+                      onChange={onEditFormation1Change}
+                      options={heroOptions}
+                      maxSuggestions={5}
+                    />
+                    <AutocompleteField
+                      id={`edit-fm2-${m.id}`}
+                      label="진형2"
+                      value={editFormation2}
+                      onChange={onEditFormation2Change}
+                      options={heroOptions}
+                      maxSuggestions={5}
+                    />
+                    <AutocompleteField
+                      id={`edit-fm3-${m.id}`}
+                      label="진형3"
+                      value={editFormation3}
+                      onChange={onEditFormation3Change}
+                      options={heroOptions}
+                      maxSuggestions={5}
                     />
                   </div>
                   <div className="field">

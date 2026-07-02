@@ -497,7 +497,9 @@
 /* VS / ATK / 펫 배지 열 너비 통일 → 세로로 초상화 칸이 맞음 */
 .guide-line--portraits .guide-badge-vs,
 .guide-line--portraits .guide-badge-atk,
-.guide-line--portraits .guide-badge-pet {
+.guide-line--portraits .guide-badge-pet,
+.guide-line--portraits .guide-badge-equipment,
+.guide-line--portraits .guide-badge-formation {
   flex: 0 0 var(--portrait-badge-w, 2.5rem);
   width: var(--portrait-badge-w, 2.5rem);
   box-sizing: border-box;
@@ -761,6 +763,26 @@
   border-radius: 4px;
   background: #e0e7ff;
   color: #4338ca;
+  font-weight: 800;
+  font-size: 0.65rem;
+}
+
+.guide-badge-equipment {
+  flex-shrink: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #b45309;
+  font-weight: 800;
+  font-size: 0.65rem;
+}
+
+.guide-badge-formation {
+  flex-shrink: 0;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: #f3e8ff;
+  color: #7e22ce;
   font-weight: 800;
   font-size: 0.65rem;
 }
