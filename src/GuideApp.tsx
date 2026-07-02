@@ -12,9 +12,21 @@ import type { MatchupRow } from './types/matchup.ts'
 import './App.css'
 import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
-import { AutoRegisterPanel } from './AutoRegisterPanel.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
+import {
+  MatchupGroupCard,
+  matchupsToRegistrationGroups,
+  type MatchupGroup,
+} from './MatchupGroupCard.tsx'
+import { RegisterMatchupForm } from './RegisterMatchupForm.tsx'
+import {
+  formatSearchHistoryLabel,
+  loadSearchHistory,
+  pushSearchHistory,
+  searchHistoryKey,
+  type SearchHistoryItem,
+} from './lib/searchHistoryStorage.ts'
 import { supabase } from './supabase/client.ts'
 import { useMasonrySearchLayout } from './useMasonrySearchLayout.ts'
 
@@ -23,7 +35,6 @@ type NavId =
   | 'stats'
   | 'siege'
   | 'register'
-  | 'auto'
   | 'rank'
   | 'admin'
 
@@ -105,20 +116,6 @@ const SIEGE_DAYS: Array<{ value: number; label: string }> = [
 ]
 
 /** 한국 날짜 기준 YYYY-MM-DD */
-function formatDateYmdSeoul(iso: string): string {
-  const t = Date.parse(iso)
-  if (Number.isNaN(t)) {
-    const s = iso.trim()
-    return s.length >= 10 ? s.slice(0, 10) : s
-  }
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(t))
-}
-
 function todayYmdSeoul(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
@@ -126,28 +123,6 @@ function todayYmdSeoul(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
-}
-
-/** 내용 수정 반영 후에는 `수정일자`, 그 외는 `등록일자` (승·패 투표만으로는 바뀌지 않음) */
-function matchupDateCaption(m: MatchupRow): string | null {
-  const c = m.created_at?.trim()
-  const u = m.updated_at?.trim()
-  if (!c && !u) return null
-  if (!c || !u) {
-    return `등록일자 : ${formatDateYmdSeoul(c || u || '')}`
-  }
-  const ct = new Date(c).getTime()
-  const ut = new Date(u).getTime()
-  if (ut > ct) {
-    return `수정일자 : ${formatDateYmdSeoul(u)}`
-  }
-  return `등록일자 : ${formatDateYmdSeoul(c)}`
-}
-
-function winRatePct(win: number, lose: number): string {
-  const t = Number(win) + Number(lose)
-  if (t <= 0) return '—'
-  return `${Math.round((Number(win) / t) * 100)}%`
 }
 
 /** 통계 카드의 "이름 / 이름 / 이름" 라벨을 초상화용 배열로 */
@@ -204,13 +179,6 @@ function mapRpcToMatchup(r: Record<string, unknown>): MatchupRow {
   }
 }
 
-type MatchupGroup = {
-  groupId: string
-  /** 카드 헤더 표시용(같은 그룹 내 가장 먼저 등록된 행) */
-  header: MatchupRow
-  strategies: MatchupRow[]
-}
-
 function groupMatchups(rows: MatchupRow[]): MatchupGroup[] {
   const map = new Map<string, MatchupRow[]>()
   for (const r of rows) {
@@ -222,11 +190,17 @@ function groupMatchups(rows: MatchupRow[]): MatchupGroup[] {
   }
   const out: MatchupGroup[] = []
   for (const [groupId, strategies] of map) {
-    strategies.sort((a, b) => a.id - b.id)
+    strategies.sort((a, b) => {
+      if (b.win !== a.win) return b.win - a.win
+      return a.id - b.id
+    })
     const header = strategies[0]
     out.push({ groupId, header, strategies })
   }
   out.sort((a, b) => {
+    const wa = a.strategies.reduce((s, x) => s + x.win, 0)
+    const wb = b.strategies.reduce((s, x) => s + x.win, 0)
+    if (wb !== wa) return wb - wa
     const ta = a.strategies.reduce((s, x) => s + x.win + x.lose, 0)
     const tb = b.strategies.reduce((s, x) => s + x.win + x.lose, 0)
     if (tb !== ta) return tb - ta
@@ -269,6 +243,13 @@ function buildContributorRanking(rows: MatchupRow[]): RankItem[] {
     prevRank = rank
   }
   return out
+}
+
+function sortByRegistrationOrder(a: MatchupRow, b: MatchupRow): number {
+  const ta = a.created_at?.trim() ?? ''
+  const tb = b.created_at?.trim() ?? ''
+  if (ta !== tb) return ta.localeCompare(tb)
+  return a.id - b.id
 }
 
 function addDays(d: Date, days: number): Date {
@@ -331,7 +312,6 @@ export function GuideApp({ session, onLogout }: Props) {
   const [portraitUrlByKey, setPortraitUrlByKey] = useState<Record<string, string>>(
     {},
   )
-  const [iconUrlByKey, setIconUrlByKey] = useState<Record<string, string>>({})
 
   const [d1, setD1] = useState('')
   const [d2, setD2] = useState('')
@@ -398,6 +378,13 @@ export function GuideApp({ session, onLogout }: Props) {
   const [regMsg, setRegMsg] = useState<string | null>(null)
   const [regErr, setRegErr] = useState<string | null>(null)
   const [regBusy, setRegBusy] = useState(false)
+  const [myMatchupsOpen, setMyMatchupsOpen] = useState(false)
+  const [myMatchups, setMyMatchups] = useState<MatchupRow[]>([])
+  const [myMatchupsLoading, setMyMatchupsLoading] = useState(false)
+  const [myMatchupsErr, setMyMatchupsErr] = useState<string | null>(null)
+  const [myMatchupsMasonryTick, setMyMatchupsMasonryTick] = useState(0)
+  const [searchRegisterOpen, setSearchRegisterOpen] = useState(false)
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
   const [profileName, setProfileName] = useState(session.displayName)
 
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -440,11 +427,9 @@ export function GuideApp({ session, onLogout }: Props) {
       const { data, error } = await supabase.rpc('hero_portraits_map')
       if (error || !data) {
         setPortraitUrlByKey({})
-        setIconUrlByKey({})
         return
       }
       const nextPortraits: Record<string, string> = {}
-      const nextIcons: Record<string, string> = {}
       for (const row of data as {
         hero_key: string
         image_url: string
@@ -452,15 +437,11 @@ export function GuideApp({ session, onLogout }: Props) {
       }[]) {
         const key = String(row.hero_key)
         const portrait = String(row.image_url ?? '')
-        const icon = String(row.icon_url ?? '')
         if (portrait) nextPortraits[key] = portrait
-        if (icon) nextIcons[key] = icon
       }
       setPortraitUrlByKey(nextPortraits)
-      setIconUrlByKey(nextIcons)
     } catch {
       setPortraitUrlByKey({})
-      setIconUrlByKey({})
     }
   }, [])
 
@@ -481,7 +462,22 @@ export function GuideApp({ session, onLogout }: Props) {
     setNav('search')
   }, [session.userId])
 
+  useEffect(() => {
+    setSearchHistory(loadSearchHistory(session.userId))
+  }, [session.userId])
+
+  useEffect(() => {
+    if (nav !== 'search') {
+      setMyMatchupsOpen(false)
+      setSearchRegisterOpen(false)
+    }
+  }, [nav])
+
   const groupedResults = useMemo(() => groupMatchups(results), [results])
+  const groupedMyMatchups = useMemo(
+    () => matchupsToRegistrationGroups(myMatchups),
+    [myMatchups],
+  )
 
   const masonryLayoutKey = useMemo(
     () =>
@@ -514,6 +510,38 @@ export function GuideApp({ session, onLogout }: Props) {
   )
 
   const searchMasonryRef = useMasonrySearchLayout(masonryLayoutKey)
+
+  const myMatchupsMasonryLayoutKey = useMemo(
+    () =>
+      JSON.stringify({
+        myMatchupsOpen,
+        myMatchupsMasonryTick,
+        groups: groupedMyMatchups.map((g) => g.groupId),
+        editingId,
+        editSkillOrder,
+        editPet,
+        editNotes,
+        editErr: editErr ?? '',
+        portraitKeys: Object.keys(portraitUrlByKey).length,
+        resultCount: myMatchups.length,
+        isAdmin,
+      }),
+    [
+      myMatchupsOpen,
+      myMatchupsMasonryTick,
+      groupedMyMatchups,
+      editingId,
+      editSkillOrder,
+      editPet,
+      editNotes,
+      editErr,
+      portraitUrlByKey,
+      myMatchups.length,
+      isAdmin,
+    ],
+  )
+
+  const myMatchupsMasonryRef = useMasonrySearchLayout(myMatchupsMasonryLayoutKey)
 
   const rankRowsForView = useMemo(() => {
     const top20 = rankRows.slice(0, 20)
@@ -563,31 +591,59 @@ export function GuideApp({ session, onLogout }: Props) {
     setExcludeInput('')
   }
 
-  const runSearch = async () => {
-    setSearchError(null)
-    setSearchLoading(true)
-    setSearched(true)
-    try {
-      const { data, error } = await supabase.rpc('search_matchups', {
-        p_d1: d1.trim() || null,
-        p_d2: d2.trim() || null,
-        p_d3: d3.trim() || null,
-        p_exclude: excludeList.length ? excludeList : [],
-      })
-      if (error) {
+  const runSearchWith = useCallback(
+    async (query: SearchHistoryItem) => {
+      setMyMatchupsOpen(false)
+      setSearchRegisterOpen(false)
+      setSearchError(null)
+      setSearchLoading(true)
+      setSearched(true)
+
+      const d1q = query.d1.trim()
+      const d2q = query.d2.trim()
+      const d3q = query.d3.trim()
+      const excludeQ = query.exclude.map((x) => x.trim()).filter(Boolean)
+
+      setD1(d1q)
+      setD2(d2q)
+      setD3(d3q)
+      setExcludeList(excludeQ)
+
+      try {
+        const { data, error } = await supabase.rpc('search_matchups', {
+          p_d1: d1q || null,
+          p_d2: d2q || null,
+          p_d3: d3q || null,
+          p_exclude: excludeQ.length ? excludeQ : [],
+        })
+        if (error) {
+          setResults([])
+          setSearchError(error.message)
+          return
+        }
+        const rows = (data ?? []) as Record<string, unknown>[]
+        setResults(rows.map((r) => mapRpcToMatchup(r)))
+        setSearchHistory(
+          pushSearchHistory(session.userId, {
+            d1: d1q,
+            d2: d2q,
+            d3: d3q,
+            exclude: excludeQ,
+          }),
+        )
+      } catch (e) {
         setResults([])
-        setSearchError(error.message)
-        return
+        setSearchError(e instanceof Error ? e.message : '검색 실패')
+      } finally {
+        setSearchLoading(false)
+        setSearchMasonryTick((n) => n + 1)
       }
-      const rows = (data ?? []) as Record<string, unknown>[]
-      setResults(rows.map((r) => mapRpcToMatchup(r)))
-    } catch (e) {
-      setResults([])
-      setSearchError(e instanceof Error ? e.message : '검색 실패')
-    } finally {
-      setSearchLoading(false)
-      setSearchMasonryTick((n) => n + 1)
-    }
+    },
+    [session.userId],
+  )
+
+  const runSearch = () => {
+    void runSearchWith({ d1, d2, d3, exclude: excludeList })
   }
 
   const loadStatsAndRank = useCallback(async () => {
@@ -700,6 +756,36 @@ export function GuideApp({ session, onLogout }: Props) {
     }
   }, [siegeDay])
 
+  const loadMyMatchups = useCallback(async () => {
+    setMyMatchupsErr(null)
+    setMyMatchupsLoading(true)
+    try {
+      const { data, error } = await supabase.rpc('search_matchups', {
+        p_d1: null,
+        p_d2: null,
+        p_d3: null,
+        p_exclude: [],
+      })
+      if (error) {
+        setMyMatchups([])
+        setMyMatchupsErr(error.message)
+        return
+      }
+      const rows = ((data ?? []) as Record<string, unknown>[]).map(mapRpcToMatchup)
+      setMyMatchups(
+        rows
+          .filter((r) => r.author_id === session.userId)
+          .sort(sortByRegistrationOrder),
+      )
+    } catch (err) {
+      setMyMatchups([])
+      setMyMatchupsErr(err instanceof Error ? err.message : '조회 실패')
+    } finally {
+      setMyMatchupsLoading(false)
+      setMyMatchupsMasonryTick((n) => n + 1)
+    }
+  }, [session.userId])
+
   const onSiegeRegister = async (e: FormEvent) => {
     e.preventDefault()
     setSiegeRegErr(null)
@@ -767,17 +853,17 @@ export function GuideApp({ session, onLogout }: Props) {
       })
       if (error || !data) return
       const row = data as Record<string, unknown>
-      setResults((prev) =>
-        prev.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                win: Number(row.win ?? r.win),
-                lose: Number(row.lose ?? r.lose),
-              }
-            : r,
-        ),
-      )
+      const patchRow = (r: MatchupRow): MatchupRow =>
+        r.id === id
+          ? {
+              ...r,
+              win: Number(row.win ?? r.win),
+              lose: Number(row.lose ?? r.lose),
+            }
+          : r
+      setResults((prev) => prev.map(patchRow))
+      setMyMatchups((prev) => prev.map(patchRow))
+      setMyMatchupsMasonryTick((n) => n + 1)
       void loadHeroes()
       if (nav === 'stats' || nav === 'rank') {
         void loadStatsAndRank()
@@ -1091,6 +1177,8 @@ export function GuideApp({ session, onLogout }: Props) {
         return
       }
       setResults((prev) => prev.filter((x) => x.id !== id))
+      setMyMatchups((prev) => prev.filter((x) => x.id !== id))
+      setMyMatchupsMasonryTick((n) => n + 1)
       setAdminMsg('공략을 삭제했습니다.')
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : '삭제 실패')
@@ -1179,6 +1267,7 @@ export function GuideApp({ session, onLogout }: Props) {
       })
       setRegMsg('등록되었습니다.')
       void loadHeroes()
+      if (myMatchupsOpen) void loadMyMatchups()
     } catch (err) {
       setRegErr(err instanceof Error ? err.message : '등록 실패')
     } finally {
@@ -1191,11 +1280,37 @@ export function GuideApp({ session, onLogout }: Props) {
       key={id}
       type="button"
       className={nav === id ? 'guide-nav--active' : ''}
-      onClick={() => setNav(id)}
+      onClick={() => {
+        if (id !== 'search') {
+          setMyMatchupsOpen(false)
+          setSearchRegisterOpen(false)
+        }
+        setNav(id)
+      }}
     >
       {label}
     </button>
   )
+
+  const matchupCardProps = {
+    portraitUrlByKey,
+    editingId,
+    editSkillOrder,
+    editPet,
+    editNotes,
+    editErr,
+    editBusy,
+    isAdmin,
+    deleteBusyId,
+    onStartEdit: startEdit,
+    onCancelEdit: cancelEdit,
+    onSaveEdit: saveEdit,
+    onDelete: deleteMatchup,
+    onVote,
+    onEditSkillOrderChange: setEditSkillOrder,
+    onEditPetChange: setEditPet,
+    onEditNotesChange: setEditNotes,
+  }
 
   return (
     <div className="guide-shell">
@@ -1204,7 +1319,6 @@ export function GuideApp({ session, onLogout }: Props) {
         {navBtn('stats', '공격 통계')}
         {navBtn('siege', '공성전')}
         {navBtn('register', '공략 등록')}
-        {navBtn('auto', '전적 자동 등록')}
         {navBtn('rank', '기여 랭킹')}
         {navBtn('admin', '등록/수정')}
       </nav>
@@ -1482,20 +1596,141 @@ export function GuideApp({ session, onLogout }: Props) {
                 </ul>
               )}
 
+              {searchHistory.length > 0 ? (
+                <div className="search-history-block">
+                  <p className="guide-section-label" style={{ marginBottom: '0.45rem' }}>
+                    최근 검색
+                  </p>
+                  <ul className="search-history-list" aria-label="최근 검색 목록">
+                    {searchHistory.map((item, idx) => (
+                      <li key={searchHistoryKey(item, idx)}>
+                        <button
+                          type="button"
+                          className="search-history-btn"
+                          disabled={searchLoading}
+                          onClick={() => void runSearchWith(item)}
+                        >
+                          {formatSearchHistoryLabel(item)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               {searchError && (
                 <p className="form-error" role="alert" style={{ marginBottom: 8 }}>
                   {searchError}
                 </p>
               )}
+              <div className="search-actions-row">
+                <button
+                  type="button"
+                  className="guide-btn-primary-lg search-register-inline"
+                  onClick={() => {
+                    setMyMatchupsOpen(false)
+                    const willOpen = !searchRegisterOpen
+                    if (
+                      willOpen &&
+                      searched &&
+                      !searchLoading &&
+                      results.length === 0
+                    ) {
+                      setReg((r) => ({
+                        ...r,
+                        defense1: d1.trim(),
+                        defense2: d2.trim(),
+                        defense3: d3.trim(),
+                      }))
+                    }
+                    setSearchRegisterOpen(willOpen)
+                    setRegErr(null)
+                    setRegMsg(null)
+                  }}
+                >
+                  {searchRegisterOpen ? '등록 닫기' : '공략 등록'}
+                </button>
+                <button
+                  type="button"
+                  className="guide-btn-primary-lg search-my-toggle"
+                  onClick={() => {
+                    setSearchRegisterOpen(false)
+                    setMyMatchupsOpen((prev) => {
+                      const next = !prev
+                      if (next) void loadMyMatchups()
+                      return next
+                    })
+                    setMyMatchupsErr(null)
+                  }}
+                >
+                  {myMatchupsOpen ? '내 공략 닫기' : '내가 등록한 공략'}
+                </button>
+              </div>
               <button
                 type="button"
-                className="guide-btn-primary-lg"
+                className="guide-btn-primary-lg search-submit-toggle"
                 disabled={searchLoading}
-                onClick={() => void runSearch()}
+                onClick={runSearch}
               >
-                {searchLoading ? '검색 중…' : '방어덱 맞춤 검색'}
+                {searchLoading ? '검색 중…' : '검색'}
               </button>
+              {searchRegisterOpen ? (
+                <div className="search-register-form">
+                  <RegisterMatchupForm
+                    idPrefix="search-reg"
+                    reg={reg}
+                    setReg={setReg}
+                    heroOptions={heroOptions}
+                    regSkillOptions={regSkillOptions}
+                    regErr={regErr}
+                    regMsg={regMsg}
+                    regBusy={regBusy}
+                    onSubmit={onRegister}
+                  />
+                </div>
+              ) : null}
             </section>
+
+            {myMatchupsOpen ? (
+              <>
+                <div className="my-matchups-head">
+                  <h2 id="my-matchups-h" className="guide-results-head" style={{ margin: 0 }}>
+                    내가 등록한 공략{' '}
+                    {myMatchupsLoading ? '…' : `${groupedMyMatchups.length}건`}
+                  </h2>
+                  <button
+                    type="button"
+                    className="guide-btn-ghost"
+                    disabled={myMatchupsLoading}
+                    onClick={() => void loadMyMatchups()}
+                  >
+                    {myMatchupsLoading ? '불러오는 중…' : '새로고침'}
+                  </button>
+                </div>
+                {myMatchupsErr ? (
+                  <p className="form-error" role="alert">
+                    {myMatchupsErr}
+                  </p>
+                ) : null}
+                {myMatchupsLoading ? (
+                  <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                    불러오는 중…
+                  </p>
+                ) : null}
+                {!myMatchupsLoading && myMatchups.length === 0 && !myMatchupsErr ? (
+                  <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                    아직 등록한 공략이 없습니다.
+                  </p>
+                ) : null}
+                {myMatchups.length > 0 ? (
+                  <div ref={myMatchupsMasonryRef} className="guide-masonry-results">
+                    {groupedMyMatchups.map((g) => (
+                      <MatchupGroupCard key={g.groupId} group={g} {...matchupCardProps} />
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
 
             {searched && !searchLoading && (
               <>
@@ -1508,214 +1743,9 @@ export function GuideApp({ session, onLogout }: Props) {
                   </p>
                 ) : (
                   <div ref={searchMasonryRef} className="guide-masonry-results">
-                    {groupedResults.map((g) => {
-                      const h = g.header
-                      const sumW = g.strategies.reduce((s, x) => s + x.win, 0)
-                      const sumL = g.strategies.reduce((s, x) => s + x.lose, 0)
-                      return (
-                        <article key={g.groupId} className="guide-match-card">
-                          <div className="guide-match-head">
-                            <div className="guide-match-lines">
-                              <div className="guide-line guide-line--portraits">
-                                <span className="guide-badge-vs">VS</span>
-                                <HeroPortraitStrip
-                                  names={[h.defense1, h.defense2, h.defense3]}
-                                  portraitUrlByKey={portraitUrlByKey}
-                                />
-                              </div>
-                              <div className="guide-line guide-line--portraits">
-                                <span className="guide-badge-atk">ATK</span>
-                                <HeroPortraitStrip
-                                  names={[h.attack1, h.attack2, h.attack3]}
-                                  portraitUrlByKey={portraitUrlByKey}
-                                />
-                              </div>
-                              {h.pet.trim() ? (
-                                <div className="guide-line guide-line--portraits">
-                                  <span className="guide-badge-pet">펫</span>
-                                  <HeroPortraitStrip
-                                    names={splitTeamLabel(h.pet)}
-                                    portraitUrlByKey={portraitUrlByKey}
-                                    fixedColumns={3}
-                                  />
-                                </div>
-                              ) : null}
-                            </div>
-                            <span className="guide-rate-pill">
-                              승률 {winRatePct(sumW, sumL)}
-                            </span>
-                          </div>
-                          {g.strategies.map((m, idx) => {
-                            const dateCaption = matchupDateCaption(m)
-                            return (
-                            <div
-                              key={m.id}
-                              className={
-                                idx === 0
-                                  ? 'guide-match-strategy'
-                                  : 'guide-match-strategy guide-match-strategy--follow'
-                              }
-                            >
-                              <div className="guide-match-body">
-                                {editingId === m.id ? (
-                                  <>
-                                    <div
-                                      className="field"
-                                      style={{ marginBottom: '0.5rem' }}
-                                    >
-                                      <label htmlFor={`edit-skill-${m.id}`}>
-                                        스킬
-                                      </label>
-                                      <input
-                                        id={`edit-skill-${m.id}`}
-                                        className="field-input"
-                                        value={editSkillOrder}
-                                        onChange={(e) =>
-                                          setEditSkillOrder(e.target.value)
-                                        }
-                                        placeholder="예: 라드1 -> 손오공2"
-                                      />
-                                    </div>
-                                    <div className="field">
-                                      <label htmlFor={`edit-pet-${m.id}`}>
-                                        펫
-                                      </label>
-                                      <input
-                                        id={`edit-pet-${m.id}`}
-                                        className="field-input"
-                                        value={editPet}
-                                        onChange={(e) =>
-                                          setEditPet(e.target.value)
-                                        }
-                                        placeholder="예: 델프 / 라드 / (공략 등록과 동일, 슬래시로 구분)"
-                                      />
-                                    </div>
-                                    <div className="field">
-                                      <label htmlFor={`edit-notes-${m.id}`}>
-                                        테스트 코멘트
-                                      </label>
-                                      <textarea
-                                        id={`edit-notes-${m.id}`}
-                                        className="guide-textarea"
-                                        value={editNotes}
-                                        onChange={(e) =>
-                                          setEditNotes(e.target.value)
-                                        }
-                                        placeholder="코멘트 입력"
-                                      />
-                                    </div>
-                                    {editErr && (
-                                      <p className="form-error" role="alert">
-                                        {editErr}
-                                      </p>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    {m.skill_order ? (
-                                      <p className="guide-skill">
-                                        ⚡ 스킬: {m.skill_order}
-                                      </p>
-                                    ) : null}
-                                    {m.notes ? (
-                                      <p className="guide-notes">{m.notes}</p>
-                                    ) : (
-                                      <p
-                                        className="guide-notes"
-                                        style={{ color: '#92400e' }}
-                                      >
-                                        코멘트 없음
-                                      </p>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                              <div className="guide-match-actions">
-                                {editingId === m.id ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="guide-btn-ghost"
-                                      disabled={editBusy}
-                                      onClick={() => void saveEdit(m.id)}
-                                    >
-                                      {editBusy ? '저장 중…' : '저장'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="guide-btn-ghost"
-                                      disabled={editBusy}
-                                      onClick={cancelEdit}
-                                    >
-                                      취소
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className="guide-btn-ghost"
-                                      onClick={() => startEdit(m)}
-                                    >
-                                      수정
-                                    </button>
-                                    {isAdmin ? (
-                                      <button
-                                        type="button"
-                                        className="guide-btn-ghost"
-                                        disabled={deleteBusyId === m.id}
-                                        onClick={() =>
-                                          void deleteMatchup(m.id)
-                                        }
-                                      >
-                                        {deleteBusyId === m.id
-                                          ? '삭제 중…'
-                                          : '삭제'}
-                                      </button>
-                                    ) : null}
-                                  </>
-                                )}
-                              </div>
-                              <div className="guide-vote-row">
-                                <button
-                                  type="button"
-                                  className="guide-vote-win"
-                                  onClick={() => void onVote(m.id, 'win')}
-                                >
-                                  👍 승리
-                                </button>
-                                <button
-                                  type="button"
-                                  className="guide-vote-lose"
-                                  onClick={() => void onVote(m.id, 'lose')}
-                                >
-                                  👎 패배
-                                </button>
-                              </div>
-                              <footer className="guide-match-foot">
-                                {dateCaption ? (
-                                  <div className="guide-match-foot-date">
-                                    {dateCaption}
-                                  </div>
-                                ) : null}
-                                <div className="guide-match-foot-row">
-                                  <span>
-                                    {m.win}승 {m.lose}패
-                                  </span>
-                                  <span>
-                                    By{' '}
-                                    {m.author_name ||
-                                      m.author_username ||
-                                      `user-${m.author_id.slice(0, 8)}`}
-                                  </span>
-                                </div>
-                              </footer>
-                            </div>
-                            )
-                          })}
-                        </article>
-                      )
-                    })}
+                    {groupedResults.map((g) => (
+                      <MatchupGroupCard key={g.groupId} group={g} {...matchupCardProps} />
+                    ))}
                   </div>
                 )}
               </>
@@ -2121,186 +2151,22 @@ export function GuideApp({ session, onLogout }: Props) {
           </section>
         )}
 
-        {nav === 'auto' && (
-          <AutoRegisterPanel
-            sessionToken={getSessionToken()}
-            heroOptions={heroOptions}
-            portraitUrlByKey={portraitUrlByKey}
-            iconUrlByKey={iconUrlByKey}
-            onRegistered={() => {
-              void loadHeroes()
-              if (searched) void runSearch()
-            }}
-          />
-        )}
-
         {nav === 'register' && (
           <section className="guide-card" aria-labelledby="reg-h">
             <h2 id="reg-h" className="card-title" style={{ marginTop: 0 }}>
               공략 등록
             </h2>
-            <form onSubmit={onRegister}>
-              <div className="guide-register-grid">
-                <AutocompleteField
-                  id="r1"
-                  label="방어1"
-                  value={reg.defense1}
-                  onChange={(v) => setReg((p) => ({ ...p, defense1: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="r2"
-                  label="방어2"
-                  value={reg.defense2}
-                  onChange={(v) => setReg((p) => ({ ...p, defense2: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="r3"
-                  label="방어3"
-                  value={reg.defense3}
-                  onChange={(v) => setReg((p) => ({ ...p, defense3: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="ra1"
-                  label="공격1"
-                  value={reg.attack1}
-                  onChange={(v) => setReg((p) => ({ ...p, attack1: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="ra2"
-                  label="공격2"
-                  value={reg.attack2}
-                  onChange={(v) => setReg((p) => ({ ...p, attack2: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="ra3"
-                  label="공격3"
-                  value={reg.attack3}
-                  onChange={(v) => setReg((p) => ({ ...p, attack3: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-              </div>
-              <div className="guide-register-grid guide-register-pet-row">
-                <AutocompleteField
-                  id="rpet1"
-                  label="펫1"
-                  value={reg.pet1}
-                  onChange={(v) => setReg((p) => ({ ...p, pet1: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="rpet2"
-                  label="펫2"
-                  value={reg.pet2}
-                  onChange={(v) => setReg((p) => ({ ...p, pet2: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-                <AutocompleteField
-                  id="rpet3"
-                  label="펫3"
-                  value={reg.pet3}
-                  onChange={(v) => setReg((p) => ({ ...p, pet3: v }))}
-                  options={heroOptions}
-                  maxSuggestions={5}
-                />
-              </div>
-              <div className="guide-register-grid guide-register-skill-row">
-                <div className="field">
-                  <label htmlFor="sk1">스킬1</label>
-                  <select
-                    id="sk1"
-                    className="field-input ac-input"
-                    value={reg.skillSlot1}
-                    onChange={(e) =>
-                      setReg((p) => ({ ...p, skillSlot1: e.target.value }))
-                    }
-                  >
-                    <option value="">선택</option>
-                    {regSkillOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="sk2">스킬2</label>
-                  <select
-                    id="sk2"
-                    className="field-input ac-input"
-                    value={reg.skillSlot2}
-                    onChange={(e) =>
-                      setReg((p) => ({ ...p, skillSlot2: e.target.value }))
-                    }
-                  >
-                    <option value="">선택</option>
-                    {regSkillOptions.map((opt) => (
-                      <option key={`s2-${opt}`} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="sk3">스킬3</label>
-                  <select
-                    id="sk3"
-                    className="field-input ac-input"
-                    value={reg.skillSlot3}
-                    onChange={(e) =>
-                      setReg((p) => ({ ...p, skillSlot3: e.target.value }))
-                    }
-                  >
-                    <option value="">선택</option>
-                    {regSkillOptions.map((opt) => (
-                      <option key={`s3-${opt}`} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="field" style={{ marginTop: '0.65rem' }}>
-                <label htmlFor="nt">코멘트 / 메모</label>
-                <textarea
-                  id="nt"
-                  className="guide-textarea guide-textarea--register-notes"
-                  value={reg.notes}
-                  onChange={(e) => setReg((p) => ({ ...p, notes: e.target.value }))}
-                  placeholder="팁을 입력하세요"
-                />
-              </div>
-              {regErr && (
-                <p className="form-error" role="alert">
-                  {regErr}
-                </p>
-              )}
-              {regMsg && (
-                <p className="register-hint register-hint--success" role="status">
-                  {regMsg}
-                </p>
-              )}
-              <button
-                type="submit"
-                className="guide-btn-primary-lg"
-                style={{ marginTop: '0.85rem' }}
-                disabled={regBusy}
-              >
-                {regBusy ? '등록 중…' : '등록하기'}
-              </button>
-            </form>
+            <RegisterMatchupForm
+              idPrefix="reg"
+              reg={reg}
+              setReg={setReg}
+              heroOptions={heroOptions}
+              regSkillOptions={regSkillOptions}
+              regErr={regErr}
+              regMsg={regMsg}
+              regBusy={regBusy}
+              onSubmit={onRegister}
+            />
           </section>
         )}
       </div>
