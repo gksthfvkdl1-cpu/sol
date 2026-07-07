@@ -12,6 +12,7 @@ import type { MatchupRow } from './types/matchup.ts'
 import './App.css'
 import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
+import { AdminPrivilegePanel } from './AdminPrivilegePanel.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
 import {
@@ -2013,6 +2014,12 @@ export function GuideApp({ session, onLogout }: Props) {
             ) : null}
             {isAdmin ? (
               <>
+            {getSessionToken() ? (
+              <AdminPrivilegePanel
+                sessionToken={getSessionToken()!}
+                currentUserId={session.userId}
+              />
+            ) : null}
             {adminErr ? (
               <p className="form-error" role="alert">
                 {adminErr}
