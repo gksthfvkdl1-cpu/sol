@@ -13,6 +13,7 @@ import './App.css'
 import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
 import { AdminPrivilegePanel } from './AdminPrivilegePanel.tsx'
+import { AdminWeeklySummary } from './AdminWeeklySummary.tsx'
 import { BrandLogo } from './BrandLogo.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
 import {
@@ -426,6 +427,7 @@ export function GuideApp({ session, onLogout }: Props) {
   const [editRequests, setEditRequests] = useState<EditRequestRow[]>([])
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminErr, setAdminErr] = useState<string | null>(null)
+  const [adminSummaryRefreshKey, setAdminSummaryRefreshKey] = useState(0)
   const [restoreMatchupId, setRestoreMatchupId] = useState('')
   const [restoreAsOfDate, setRestoreAsOfDate] = useState('')
   const [restoreTrimFuture, setRestoreTrimFuture] = useState(true)
@@ -1011,6 +1013,7 @@ export function GuideApp({ session, onLogout }: Props) {
       }
       setSignupRequests(j.pending_signups ?? [])
       setEditRequests(j.edit_requests ?? [])
+      setAdminSummaryRefreshKey((k) => k + 1)
     } catch (err) {
       setAdminErr(err instanceof Error ? err.message : '관리자 목록 조회 실패')
     } finally {
@@ -2014,6 +2017,12 @@ export function GuideApp({ session, onLogout }: Props) {
             ) : null}
             {isAdmin ? (
               <>
+            {getSessionToken() ? (
+              <AdminWeeklySummary
+                sessionToken={getSessionToken()!}
+                refreshKey={adminSummaryRefreshKey}
+              />
+            ) : null}
             {getSessionToken() ? (
               <AdminPrivilegePanel
                 sessionToken={getSessionToken()!}
