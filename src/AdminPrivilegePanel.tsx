@@ -11,6 +11,7 @@ type AdminUserRow = {
   is_rule_admin: boolean
   is_effective_admin: boolean
   created_at: string
+  last_seen_at: string | null
 }
 
 type Props = {
@@ -29,7 +30,13 @@ function mapUserRow(raw: Record<string, unknown>): AdminUserRow {
     is_rule_admin: raw.is_rule_admin === true,
     is_effective_admin: raw.is_effective_admin === true,
     created_at: String(raw.created_at ?? ''),
+    last_seen_at: raw.last_seen_at ? String(raw.last_seen_at) : null,
   }
+}
+
+function formatLastSeen(iso: string | null): string {
+  if (!iso) return '접속 기록 없음'
+  return new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
 }
 
 function formatAdminError(message: string): string {
@@ -221,6 +228,9 @@ export function AdminPrivilegePanel({ sessionToken, currentUserId }: Props) {
                       <span className="guide-admin-badge guide-admin-badge--rejected">거절</span>
                     ) : null}
                   </div>
+                  <p className="guide-skill" style={{ margin: '0.35rem 0 0' }}>
+                    마지막 접속: {formatLastSeen(u.last_seen_at)}
+                  </p>
                 </div>
                 <div className="guide-vote-row" style={{ marginTop: '0.45rem' }}>
                   {u.is_admin ? (
