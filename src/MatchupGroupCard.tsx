@@ -1,5 +1,6 @@
-import { AutocompleteField } from './AutocompleteField.tsx'
+import { LoadoutSelectField } from './LoadoutSelectField.tsx'
 import { HeroPortraitStrip } from './HeroPortraitStrip.tsx'
+import { EQUIPMENT_OPTIONS, FORMATION_OPTIONS } from './lib/matchupLoadoutOptions.ts'
 import type { MatchupRow } from './types/matchup.ts'
 
 export type MatchupGroup = {
@@ -25,7 +26,6 @@ type Props = {
   editBusy: boolean
   isAdmin: boolean
   deleteBusyId: number | null
-  heroOptions: string[]
   onStartEdit: (m: MatchupRow) => void
   onCancelEdit: () => void
   onSaveEdit: (id: number) => void
@@ -101,7 +101,6 @@ export function MatchupGroupCard({
   editBusy,
   isAdmin,
   deleteBusyId,
-  heroOptions,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
@@ -207,55 +206,49 @@ export function MatchupGroupCard({
                     />
                   </div>
                   <div className="guide-register-grid" style={{ marginTop: '0.5rem' }}>
-                    <AutocompleteField
+                    <LoadoutSelectField
                       id={`edit-eq1-${m.id}`}
                       label="장비1"
                       value={editEquipment1}
                       onChange={onEditEquipment1Change}
-                      options={heroOptions}
-                      maxSuggestions={5}
+                      options={EQUIPMENT_OPTIONS}
                     />
-                    <AutocompleteField
+                    <LoadoutSelectField
                       id={`edit-eq2-${m.id}`}
                       label="장비2"
                       value={editEquipment2}
                       onChange={onEditEquipment2Change}
-                      options={heroOptions}
-                      maxSuggestions={5}
+                      options={EQUIPMENT_OPTIONS}
                     />
-                    <AutocompleteField
+                    <LoadoutSelectField
                       id={`edit-eq3-${m.id}`}
                       label="장비3"
                       value={editEquipment3}
                       onChange={onEditEquipment3Change}
-                      options={heroOptions}
-                      maxSuggestions={5}
+                      options={EQUIPMENT_OPTIONS}
                     />
                   </div>
                   <div className="guide-register-grid" style={{ marginTop: '0.5rem' }}>
-                    <AutocompleteField
+                    <LoadoutSelectField
                       id={`edit-fm1-${m.id}`}
                       label="진형1"
                       value={editFormation1}
                       onChange={onEditFormation1Change}
-                      options={heroOptions}
-                      maxSuggestions={5}
+                      options={FORMATION_OPTIONS}
                     />
-                    <AutocompleteField
+                    <LoadoutSelectField
                       id={`edit-fm2-${m.id}`}
                       label="진형2"
                       value={editFormation2}
                       onChange={onEditFormation2Change}
-                      options={heroOptions}
-                      maxSuggestions={5}
+                      options={FORMATION_OPTIONS}
                     />
-                    <AutocompleteField
+                    <LoadoutSelectField
                       id={`edit-fm3-${m.id}`}
                       label="진형3"
                       value={editFormation3}
                       onChange={onEditFormation3Change}
-                      options={heroOptions}
-                      maxSuggestions={5}
+                      options={FORMATION_OPTIONS}
                     />
                   </div>
                   <div className="field">

@@ -1396,7 +1396,6 @@ export function GuideApp({ session, onLogout }: Props) {
     editBusy,
     isAdmin,
     deleteBusyId,
-    heroOptions,
     onStartEdit: startEdit,
     onCancelEdit: cancelEdit,
     onSaveEdit: saveEdit,

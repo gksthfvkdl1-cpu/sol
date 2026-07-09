@@ -7,7 +7,9 @@ import {
   type ChangeEvent,
 } from 'react'
 import { AutocompleteField } from './AutocompleteField.tsx'
+import { LoadoutSelectField } from './LoadoutSelectField.tsx'
 import { supabase } from './supabase/client.ts'
+import { joinLoadoutSlots, EQUIPMENT_OPTIONS, FORMATION_OPTIONS } from './lib/matchupLoadoutOptions.ts'
 import { portraitKey } from './lib/portraitKey.ts'
 import {
   DEFAULT_CHARACTER_MATCH_POSITIONS,
@@ -300,6 +302,12 @@ export function AutoRegisterPanel({
   const [attackSlots, setAttackSlots] = useState<EditableSlot[]>(() => makeEmptyTeam())
   const [defenseSlots, setDefenseSlots] = useState<EditableSlot[]>(() => makeEmptyTeam())
   const [petSlots, setPetSlots] = useState<EditableSlot[]>(() => makeEmptyPetRow())
+  const [equipment1, setEquipment1] = useState('')
+  const [equipment2, setEquipment2] = useState('')
+  const [equipment3, setEquipment3] = useState('')
+  const [formation1, setFormation1] = useState('')
+  const [formation2, setFormation2] = useState('')
+  const [formation3, setFormation3] = useState('')
   const [fingerprints, setFingerprints] = useState<HeroFingerprint[] | null>(null)
   const [fingerprintBusy, setFingerprintBusy] = useState(false)
   const [fingerprintErr, setFingerprintErr] = useState<string | null>(null)
@@ -473,6 +481,8 @@ export function AutoRegisterPanel({
     const attack = packFilled(attackSlots)
     const defense = packFilled(defenseSlots)
     const pet = nonEmptyTrimmed(petSlots.map((s) => s.name)).join(' / ')
+    const equipment = joinLoadoutSlots(equipment1, equipment2, equipment3)
+    const formation = joinLoadoutSlots(formation1, formation2, formation3)
 
     if (
       attack.length !== FILLED_SLOTS_REQUIRED ||
@@ -504,6 +514,8 @@ export function AutoRegisterPanel({
         p_attack3: attack[2],
         p_pet: pet,
         p_outcome: outcome,
+        p_equipment: equipment,
+        p_formation: formation,
       })
       if (error) {
         setErr(error.message)
@@ -517,6 +529,12 @@ export function AutoRegisterPanel({
       setAttackSlots(makeEmptyTeam())
       setDefenseSlots(makeEmptyTeam())
       setPetSlots(makeEmptyPetRow())
+      setEquipment1('')
+      setEquipment2('')
+      setEquipment3('')
+      setFormation1('')
+      setFormation2('')
+      setFormation3('')
       if (fileInputRef.current) fileInputRef.current.value = ''
       onRegistered?.()
     } catch (e) {
@@ -1218,6 +1236,58 @@ export function AutoRegisterPanel({
                 () => clearSlotName(setPetSlots, i),
               ),
             )}
+          </div>
+
+          <div className="auto-team-head">
+            <h3 className="guide-section-label" style={{ margin: 0 }}>
+              장비 · 진형 (선택)
+            </h3>
+          </div>
+          <div className="guide-register-grid guide-register-pet-row">
+            <LoadoutSelectField
+              id="auto-eq1"
+              label="장비1"
+              value={equipment1}
+              onChange={setEquipment1}
+              options={EQUIPMENT_OPTIONS}
+            />
+            <LoadoutSelectField
+              id="auto-eq2"
+              label="장비2"
+              value={equipment2}
+              onChange={setEquipment2}
+              options={EQUIPMENT_OPTIONS}
+            />
+            <LoadoutSelectField
+              id="auto-eq3"
+              label="장비3"
+              value={equipment3}
+              onChange={setEquipment3}
+              options={EQUIPMENT_OPTIONS}
+            />
+          </div>
+          <div className="guide-register-grid guide-register-pet-row">
+            <LoadoutSelectField
+              id="auto-fm1"
+              label="진형1"
+              value={formation1}
+              onChange={setFormation1}
+              options={FORMATION_OPTIONS}
+            />
+            <LoadoutSelectField
+              id="auto-fm2"
+              label="진형2"
+              value={formation2}
+              onChange={setFormation2}
+              options={FORMATION_OPTIONS}
+            />
+            <LoadoutSelectField
+              id="auto-fm3"
+              label="진형3"
+              value={formation3}
+              onChange={setFormation3}
+              options={FORMATION_OPTIONS}
+            />
           </div>
 
           {err && (

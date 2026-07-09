@@ -1,5 +1,7 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import { AutocompleteField } from './AutocompleteField.tsx'
+import { LoadoutSelectField } from './LoadoutSelectField.tsx'
+import { EQUIPMENT_OPTIONS, FORMATION_OPTIONS } from './lib/matchupLoadoutOptions.ts'
 
 export type RegisterFormState = {
   defense1: string
@@ -125,55 +127,49 @@ export function RegisterMatchupForm({
         />
       </div>
       <div className="guide-register-grid guide-register-pet-row">
-        <AutocompleteField
+        <LoadoutSelectField
           id={`${idPrefix}-eq1`}
           label="장비1"
           value={reg.equipment1}
           onChange={(v) => setReg((p) => ({ ...p, equipment1: v }))}
-          options={heroOptions}
-          maxSuggestions={5}
+          options={EQUIPMENT_OPTIONS}
         />
-        <AutocompleteField
+        <LoadoutSelectField
           id={`${idPrefix}-eq2`}
           label="장비2"
           value={reg.equipment2}
           onChange={(v) => setReg((p) => ({ ...p, equipment2: v }))}
-          options={heroOptions}
-          maxSuggestions={5}
+          options={EQUIPMENT_OPTIONS}
         />
-        <AutocompleteField
+        <LoadoutSelectField
           id={`${idPrefix}-eq3`}
           label="장비3"
           value={reg.equipment3}
           onChange={(v) => setReg((p) => ({ ...p, equipment3: v }))}
-          options={heroOptions}
-          maxSuggestions={5}
+          options={EQUIPMENT_OPTIONS}
         />
       </div>
       <div className="guide-register-grid guide-register-pet-row">
-        <AutocompleteField
+        <LoadoutSelectField
           id={`${idPrefix}-fm1`}
           label="진형1"
           value={reg.formation1}
           onChange={(v) => setReg((p) => ({ ...p, formation1: v }))}
-          options={heroOptions}
-          maxSuggestions={5}
+          options={FORMATION_OPTIONS}
         />
-        <AutocompleteField
+        <LoadoutSelectField
           id={`${idPrefix}-fm2`}
           label="진형2"
           value={reg.formation2}
           onChange={(v) => setReg((p) => ({ ...p, formation2: v }))}
-          options={heroOptions}
-          maxSuggestions={5}
+          options={FORMATION_OPTIONS}
         />
-        <AutocompleteField
+        <LoadoutSelectField
           id={`${idPrefix}-fm3`}
           label="진형3"
           value={reg.formation3}
           onChange={(v) => setReg((p) => ({ ...p, formation3: v }))}
-          options={heroOptions}
-          maxSuggestions={5}
+          options={FORMATION_OPTIONS}
         />
       </div>
       <div className="guide-register-grid guide-register-skill-row">
