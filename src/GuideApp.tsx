@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from 'react'
@@ -9,6 +10,7 @@ import { AutocompleteField } from './AutocompleteField.tsx'
 import { getSessionToken } from './authSession.ts'
 import type { UserSession } from './authSession.ts'
 import type { MatchupRow } from './types/matchup.ts'
+import { MyVotesByDatePanel } from './MyVotesByDatePanel.tsx'
 import './App.css'
 import './guide.css'
 import { AdminPortraitPanel } from './AdminPortraitPanel.tsx'
@@ -29,6 +31,13 @@ import {
   searchHistoryKey,
   type SearchHistoryItem,
 } from './lib/searchHistoryStorage.ts'
+import {
+  attackHeroesFromMatchup,
+  guildWarDayYmdSeoul,
+  loadExcludeAttackHeroes,
+  mergeExcludeAttackHeroes,
+  saveExcludeAttackHeroes,
+} from './lib/excludeAttackStorage.ts'
 import { supabase } from './supabase/client.ts'
 import { useMasonrySearchLayout } from './useMasonrySearchLayout.ts'
 
@@ -332,7 +341,10 @@ export function GuideApp({ session, onLogout }: Props) {
   const [d2, setD2] = useState('')
   const [d3, setD3] = useState('')
   const [excludeInput, setExcludeInput] = useState('')
-  const [excludeList, setExcludeList] = useState<string[]>([])
+  const [excludeList, setExcludeList] = useState<string[]>(() =>
+    loadExcludeAttackHeroes(session.userId),
+  )
+  const guildDayRef = useRef(guildWarDayYmdSeoul())
 
   const [results, setResults] = useState<MatchupRow[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
@@ -436,6 +448,7 @@ export function GuideApp({ session, onLogout }: Props) {
   const [voteDailyRows, setVoteDailyRows] = useState<VoteUserDailyRow[]>([])
   const [voteDailyBusy, setVoteDailyBusy] = useState(false)
   const [voteDailyErr, setVoteDailyErr] = useState<string | null>(null)
+  const [myVotesRefreshKey, setMyVotesRefreshKey] = useState(0)
 
   const loadHeroes = useCallback(async () => {
     try {
@@ -495,11 +508,43 @@ export function GuideApp({ session, onLogout }: Props) {
   }, [session.userId])
 
   useEffect(() => {
+    guildDayRef.current = guildWarDayYmdSeoul()
+    setExcludeList(loadExcludeAttackHeroes(session.userId))
+  }, [session.userId])
+
+  useEffect(() => {
+    saveExcludeAttackHeroes(session.userId, excludeList)
+  }, [excludeList, session.userId])
+
+  const syncGuildDayExclude = useCallback(() => {
+    const day = guildWarDayYmdSeoul()
+    if (day === guildDayRef.current) return
+    guildDayRef.current = day
+    setExcludeList(loadExcludeAttackHeroes(session.userId))
+  }, [session.userId])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') syncGuildDayExclude()
+    }
+    window.addEventListener('focus', syncGuildDayExclude)
+    document.addEventListener('visibilitychange', onVis)
+    const id = window.setInterval(syncGuildDayExclude, 60_000)
+    return () => {
+      window.removeEventListener('focus', syncGuildDayExclude)
+      document.removeEventListener('visibilitychange', onVis)
+      window.clearInterval(id)
+    }
+  }, [syncGuildDayExclude])
+
+  useEffect(() => {
     if (nav !== 'search') {
       setMyMatchupsOpen(false)
       setSearchRegisterOpen(false)
+    } else {
+      syncGuildDayExclude()
     }
-  }, [nav])
+  }, [nav, syncGuildDayExclude])
 
   const groupedResults = useMemo(() => groupMatchups(results), [results])
   const groupedMyMatchups = useMemo(
@@ -916,6 +961,23 @@ export function GuideApp({ session, onLogout }: Props) {
       setResults((prev) => prev.map(patchRow))
       setMyMatchups((prev) => prev.map(patchRow))
       setMyMatchupsMasonryTick((n) => n + 1)
+      setMyVotesRefreshKey((n) => n + 1)
+
+      const fromRpc = attackHeroesFromMatchup(row)
+      const fromLocal =
+        results.find((r) => r.id === id) ?? myMatchups.find((r) => r.id === id)
+      const attacks =
+        fromRpc.length > 0
+          ? fromRpc
+          : fromLocal
+            ? attackHeroesFromMatchup(fromLocal)
+            : []
+      if (attacks.length > 0) {
+        setExcludeList((prev) =>
+          mergeExcludeAttackHeroes(session.userId, prev, attacks),
+        )
+      }
+
       void loadHeroes()
       if (nav === 'stats' || nav === 'rank') {
         void loadStatsAndRank()
@@ -1095,7 +1157,6 @@ export function GuideApp({ session, onLogout }: Props) {
     setD2('')
     setD3('')
     setExcludeInput('')
-    setExcludeList([])
     setSearchError(null)
     setSearched(false)
     setResults([])
@@ -1616,6 +1677,11 @@ export function GuideApp({ session, onLogout }: Props) {
 
         {nav === 'search' && (
           <>
+            <MyVotesByDatePanel
+              portraitUrlByKey={portraitUrlByKey}
+              refreshKey={myVotesRefreshKey}
+              defaultDateYmd={todayYmdSeoul()}
+            />
             <section className="guide-card" aria-label="검색">
               <div className="guide-tabs-row">
                 <button type="button" className="guide-tab-big guide-tab-big--on" disabled>
@@ -1658,6 +1724,10 @@ export function GuideApp({ session, onLogout }: Props) {
 
               <p className="guide-section-label">
                 <span aria-hidden>🚫</span> 제외할 공격 영웅
+              </p>
+              <p className="guide-notes" style={{ marginTop: 0, marginBottom: '0.45rem' }}>
+                승리·패배 클릭 시 해당 공략의 공격 영웅이 자동으로 추가됩니다. 한국시간 다음날
+                09:00에 초기화됩니다.
               </p>
               <div className="guide-exclude-row">
                 <input
