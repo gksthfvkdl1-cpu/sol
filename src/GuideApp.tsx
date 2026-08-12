@@ -1701,6 +1701,7 @@ export function GuideApp({ session, onLogout }: Props) {
                   options={heroOptions}
                   placeholder="방어1"
                   maxSuggestions={5}
+                  onEnterSubmit={runSearch}
                 />
                 <AutocompleteField
                   id="gd2"
@@ -1710,6 +1711,7 @@ export function GuideApp({ session, onLogout }: Props) {
                   options={heroOptions}
                   placeholder="방어2"
                   maxSuggestions={5}
+                  onEnterSubmit={runSearch}
                 />
                 <AutocompleteField
                   id="gd3"
@@ -1719,6 +1721,7 @@ export function GuideApp({ session, onLogout }: Props) {
                   options={heroOptions}
                   placeholder="방어3"
                   maxSuggestions={5}
+                  onEnterSubmit={runSearch}
                 />
               </div>
 

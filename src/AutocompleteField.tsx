@@ -17,6 +17,8 @@ type Props = {
   disabled?: boolean
   placeholder?: string
   maxSuggestions?: number
+  /** Enter 시 자동완성 선택이 아니면 호출 (예: 검색) */
+  onEnterSubmit?: () => void
 }
 
 export function AutocompleteField({
@@ -28,6 +30,7 @@ export function AutocompleteField({
   disabled,
   placeholder,
   maxSuggestions = 5,
+  onEnterSubmit,
 }: Props) {
   const listId = useId()
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -98,9 +101,18 @@ export function AutocompleteField({
       return
     }
 
-    if (e.key === 'Enter' && open && activeIndex >= 0 && suggestions[activeIndex]) {
-      pick(suggestions[activeIndex])
-      e.preventDefault()
+    if (e.key === 'Enter') {
+      if (open && activeIndex >= 0 && suggestions[activeIndex]) {
+        pick(suggestions[activeIndex])
+        e.preventDefault()
+        return
+      }
+      if (onEnterSubmit) {
+        setOpen(false)
+        setActiveIndex(-1)
+        e.preventDefault()
+        onEnterSubmit()
+      }
     }
   }
 
