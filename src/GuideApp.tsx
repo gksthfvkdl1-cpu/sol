@@ -597,12 +597,11 @@ export function GuideApp({ session, onLogout }: Props) {
       setSelectedResultGroupId(null)
       return
     }
-    if (searchLayout !== 'B') return
     setSelectedResultGroupId((prev) => {
       if (prev && groupedResults.some((g) => g.groupId === prev)) return prev
-      return groupedResults[0]?.groupId ?? null
+      return null
     })
-  }, [groupedResults, searchLayout])
+  }, [groupedResults])
 
   const setSearchLayoutMode = (mode: SearchLayoutMode) => {
     setSearchLayout(mode)
