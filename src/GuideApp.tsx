@@ -23,7 +23,13 @@ import {
   matchupsToRegistrationGroups,
   type MatchupGroup,
 } from './MatchupGroupCard.tsx'
+import { MatchupGroupListRow } from './MatchupGroupListRow.tsx'
 import { RegisterMatchupForm } from './RegisterMatchupForm.tsx'
+import {
+  loadSearchLayout,
+  saveSearchLayout,
+  type SearchLayoutMode,
+} from './lib/searchLayoutStorage.ts'
 import {
   formatSearchHistoryLabel,
   loadSearchHistory,
@@ -39,7 +45,6 @@ import {
   saveExcludeAttackHeroes,
 } from './lib/excludeAttackStorage.ts'
 import { supabase } from './supabase/client.ts'
-import { useMasonrySearchLayout } from './useMasonrySearchLayout.ts'
 
 type NavId =
   | 'search'
@@ -223,11 +228,16 @@ function groupMatchups(rows: MatchupRow[]): MatchupGroup[] {
   }
   out.sort((a, b) => {
     const wa = a.strategies.reduce((s, x) => s + x.win, 0)
+    const la = a.strategies.reduce((s, x) => s + x.lose, 0)
     const wb = b.strategies.reduce((s, x) => s + x.win, 0)
-    if (wb !== wa) return wb - wa
-    const ta = a.strategies.reduce((s, x) => s + x.win + x.lose, 0)
-    const tb = b.strategies.reduce((s, x) => s + x.win + x.lose, 0)
+    const lb = b.strategies.reduce((s, x) => s + x.lose, 0)
+    const ta = wa + la
+    const tb = wb + lb
+    const ra = ta > 0 ? wa / ta : -1
+    const rb = tb > 0 ? wb / tb : -1
+    if (rb !== ra) return rb - ra
     if (tb !== ta) return tb - ta
+    if (wb !== wa) return wb - wa
     return a.header.id - b.header.id
   })
   return out
@@ -332,6 +342,19 @@ function buildWeekOptionsOfYear(year: number): WeekOption[] {
 export function GuideApp({ session, onLogout }: Props) {
   const isAdmin = session.isAdmin
   const [nav, setNav] = useState<NavId>('search')
+  const [searchLayout, setSearchLayout] = useState<SearchLayoutMode>(() =>
+    loadSearchLayout(session.userId),
+  )
+  const [railOpen, setRailOpen] = useState(() => {
+    try {
+      return localStorage.getItem(`seven-rail-open-${session.userId}`) !== '0'
+    } catch {
+      return true
+    }
+  })
+  const [selectedResultGroupId, setSelectedResultGroupId] = useState<string | null>(
+    null,
+  )
   const [heroOptions, setHeroOptions] = useState<string[]>([])
   const [portraitUrlByKey, setPortraitUrlByKey] = useState<Record<string, string>>(
     {},
@@ -349,8 +372,6 @@ export function GuideApp({ session, onLogout }: Props) {
   const [results, setResults] = useState<MatchupRow[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  /** 검색 완료마다 증가 — 동일 결과 재검색 시에도 masonry useLayoutEffect 가 다시 돌도록 */
-  const [searchMasonryTick, setSearchMasonryTick] = useState(0)
   const [searched, setSearched] = useState(false)
   const [attackTop10, setAttackTop10] = useState<AttackStatItem[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
@@ -415,7 +436,6 @@ export function GuideApp({ session, onLogout }: Props) {
   const [myMatchups, setMyMatchups] = useState<MatchupRow[]>([])
   const [myMatchupsLoading, setMyMatchupsLoading] = useState(false)
   const [myMatchupsErr, setMyMatchupsErr] = useState<string | null>(null)
-  const [myMatchupsMasonryTick, setMyMatchupsMasonryTick] = useState(0)
   const [searchRegisterOpen, setSearchRegisterOpen] = useState(false)
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([])
   const [profileName, setProfileName] = useState(session.displayName)
@@ -508,6 +528,26 @@ export function GuideApp({ session, onLogout }: Props) {
   }, [session.userId])
 
   useEffect(() => {
+    setSearchLayout(loadSearchLayout(session.userId))
+    try {
+      setRailOpen(localStorage.getItem(`seven-rail-open-${session.userId}`) !== '0')
+    } catch {
+      setRailOpen(true)
+    }
+  }, [session.userId])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `seven-rail-open-${session.userId}`,
+        railOpen ? '1' : '0',
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [railOpen, session.userId])
+
+  useEffect(() => {
     guildDayRef.current = guildWarDayYmdSeoul()
     setExcludeList(loadExcludeAttackHeroes(session.userId))
   }, [session.userId])
@@ -552,93 +592,27 @@ export function GuideApp({ session, onLogout }: Props) {
     [myMatchups],
   )
 
-  const masonryLayoutKey = useMemo(
-    () =>
-      JSON.stringify({
-        nav,
-        searchMasonryTick,
-        groups: groupedResults.map((g) => g.groupId),
-        editingId,
-        editSkillOrder,
-        editPet,
-        editEquipment1,
-        editEquipment2,
-        editEquipment3,
-        editFormation1,
-        editFormation2,
-        editFormation3,
-        editNotes,
-        editErr: editErr ?? '',
-        portraitKeys: Object.keys(portraitUrlByKey).length,
-        resultCount: results.length,
-        isAdmin,
-      }),
-    [
-      nav,
-      searchMasonryTick,
-      groupedResults,
-      editingId,
-      editSkillOrder,
-      editPet,
-      editEquipment1,
-      editEquipment2,
-      editEquipment3,
-      editFormation1,
-      editFormation2,
-      editFormation3,
-      editNotes,
-      editErr,
-      portraitUrlByKey,
-      results.length,
-      isAdmin,
-    ],
+  useEffect(() => {
+    if (groupedResults.length === 0) {
+      setSelectedResultGroupId(null)
+      return
+    }
+    if (searchLayout !== 'B') return
+    setSelectedResultGroupId((prev) => {
+      if (prev && groupedResults.some((g) => g.groupId === prev)) return prev
+      return groupedResults[0]?.groupId ?? null
+    })
+  }, [groupedResults, searchLayout])
+
+  const selectedResultGroup = useMemo(
+    () => groupedResults.find((g) => g.groupId === selectedResultGroupId) ?? null,
+    [groupedResults, selectedResultGroupId],
   )
 
-  const searchMasonryRef = useMasonrySearchLayout(masonryLayoutKey)
-
-  const myMatchupsMasonryLayoutKey = useMemo(
-    () =>
-      JSON.stringify({
-        myMatchupsOpen,
-        myMatchupsMasonryTick,
-        groups: groupedMyMatchups.map((g) => g.groupId),
-        editingId,
-        editSkillOrder,
-        editPet,
-        editEquipment1,
-        editEquipment2,
-        editEquipment3,
-        editFormation1,
-        editFormation2,
-        editFormation3,
-        editNotes,
-        editErr: editErr ?? '',
-        portraitKeys: Object.keys(portraitUrlByKey).length,
-        resultCount: myMatchups.length,
-        isAdmin,
-      }),
-    [
-      myMatchupsOpen,
-      myMatchupsMasonryTick,
-      groupedMyMatchups,
-      editingId,
-      editSkillOrder,
-      editPet,
-      editEquipment1,
-      editEquipment2,
-      editEquipment3,
-      editFormation1,
-      editFormation2,
-      editFormation3,
-      editNotes,
-      editErr,
-      portraitUrlByKey,
-      myMatchups.length,
-      isAdmin,
-    ],
-  )
-
-  const myMatchupsMasonryRef = useMasonrySearchLayout(myMatchupsMasonryLayoutKey)
+  const setSearchLayoutMode = (mode: SearchLayoutMode) => {
+    setSearchLayout(mode)
+    saveSearchLayout(session.userId, mode)
+  }
 
   const rankRowsForView = useMemo(() => {
     const top20 = rankRows.slice(0, 20)
@@ -733,7 +707,6 @@ export function GuideApp({ session, onLogout }: Props) {
         setSearchError(e instanceof Error ? e.message : '검색 실패')
       } finally {
         setSearchLoading(false)
-        setSearchMasonryTick((n) => n + 1)
       }
     },
     [session.userId],
@@ -879,7 +852,6 @@ export function GuideApp({ session, onLogout }: Props) {
       setMyMatchupsErr(err instanceof Error ? err.message : '조회 실패')
     } finally {
       setMyMatchupsLoading(false)
-      setMyMatchupsMasonryTick((n) => n + 1)
     }
   }, [session.userId])
 
@@ -960,7 +932,6 @@ export function GuideApp({ session, onLogout }: Props) {
           : r
       setResults((prev) => prev.map(patchRow))
       setMyMatchups((prev) => prev.map(patchRow))
-      setMyMatchupsMasonryTick((n) => n + 1)
       setMyVotesRefreshKey((n) => n + 1)
 
       const fromRpc = attackHeroesFromMatchup(row)
@@ -1317,7 +1288,6 @@ export function GuideApp({ session, onLogout }: Props) {
       }
       setResults((prev) => prev.filter((x) => x.id !== id))
       setMyMatchups((prev) => prev.filter((x) => x.id !== id))
-      setMyMatchupsMasonryTick((n) => n + 1)
       setAdminMsg('공략을 삭제했습니다.')
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : '삭제 실패')
@@ -1473,32 +1443,300 @@ export function GuideApp({ session, onLogout }: Props) {
     onEditNotesChange: setEditNotes,
   }
 
-  return (
-    <div className="guide-shell">
-      <nav className="guide-nav" aria-label="메인 메뉴">
-        {navBtn('search', '공략 검색')}
-        {navBtn('stats', '공격 통계')}
-        {navBtn('siege', '공성전')}
-        {navBtn('register', '공략 등록')}
-        {navBtn('rank', '기여 랭킹')}
-        {navBtn('admin', '등록/수정')}
-      </nav>
+  const searchLayoutToggle = (
+    <div className="search-layout-toggle" role="group" aria-label="검색 결과 레이아웃">
+      <span className="search-layout-toggle-label">결과 보기</span>
+      <button
+        type="button"
+        className={
+          searchLayout === 'A'
+            ? 'search-layout-btn search-layout-btn--on'
+            : 'search-layout-btn'
+        }
+        onClick={() => setSearchLayoutMode('A')}
+      >
+        타입 A · 리스트
+      </button>
+      <button
+        type="button"
+        className={
+          searchLayout === 'B'
+            ? 'search-layout-btn search-layout-btn--on'
+            : 'search-layout-btn'
+        }
+        onClick={() => setSearchLayoutMode('B')}
+      >
+        타입 B · 스플릿
+      </button>
+    </div>
+  )
 
-      <div className="guide-inner">
-        <div className="guide-top-actions">
-          <button type="button" className="button-secondary" onClick={onLogout}>
+  const searchFormPanel = (
+    <section
+      className={
+        searchLayout === 'B'
+          ? 'guide-search-panel'
+          : 'guide-search-panel guide-search-panel--wide'
+      }
+      aria-label="검색"
+    >
+      <div className="guide-search-panel-top">
+        <h2 className="guide-search-title">공략 검색</h2>
+        {searchLayout === 'A' ? searchLayoutToggle : null}
+      </div>
+
+      <p className="guide-section-label">상대 방어덱 영웅</p>
+      <div className="guide-d3">
+        <AutocompleteField
+          id="gd1"
+          label="방어1"
+          value={d1}
+          onChange={setD1}
+          options={heroOptions}
+          placeholder="방어1"
+          maxSuggestions={5}
+          onEnterSubmit={runSearch}
+        />
+        <AutocompleteField
+          id="gd2"
+          label="방어2"
+          value={d2}
+          onChange={setD2}
+          options={heroOptions}
+          placeholder="방어2"
+          maxSuggestions={5}
+          onEnterSubmit={runSearch}
+        />
+        <AutocompleteField
+          id="gd3"
+          label="방어3"
+          value={d3}
+          onChange={setD3}
+          options={heroOptions}
+          placeholder="방어3"
+          maxSuggestions={5}
+          onEnterSubmit={runSearch}
+        />
+      </div>
+
+      <p className="guide-section-label">제외할 공격 영웅</p>
+      <p className="guide-notes" style={{ marginTop: 0, marginBottom: '0.45rem' }}>
+        승리·패배 클릭 시 해당 공략의 공격 영웅이 자동으로 추가됩니다. 한국시간 다음날
+        09:00에 초기화됩니다.
+      </p>
+      <div className="guide-exclude-row">
+        <input
+          type="text"
+          className="field-input"
+          value={excludeInput}
+          onChange={(e) => setExcludeInput(e.target.value)}
+          placeholder="제외할 영웅 입력…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              addExclude()
+            }
+          }}
+        />
+        <button type="button" className="guide-btn-sm" onClick={addExclude}>
+          추가
+        </button>
+      </div>
+      {excludeList.length > 0 && (
+        <ul className="guide-chip-list" aria-label="제외 목록">
+          {excludeList.map((x) => (
+            <li key={x} className="guide-chip">
+              {x}
+              <button
+                type="button"
+                aria-label={`${x} 제거`}
+                onClick={() => setExcludeList((p) => p.filter((y) => y !== x))}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {searchHistory.length > 0 ? (
+        <div className="search-history-block">
+          <p className="guide-section-label" style={{ marginBottom: '0.45rem' }}>
+            최근 검색
+          </p>
+          <ul className="search-history-chips" aria-label="최근 검색 목록">
+            {searchHistory.map((item, idx) => (
+              <li key={searchHistoryKey(item, idx)}>
+                <button
+                  type="button"
+                  className="search-history-chip"
+                  disabled={searchLoading}
+                  onClick={() => void runSearchWith(item)}
+                >
+                  {formatSearchHistoryLabel(item)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {searchError && (
+        <p className="form-error" role="alert" style={{ marginBottom: 8 }}>
+          {searchError}
+        </p>
+      )}
+      <div className="search-actions-row">
+        <button
+          type="button"
+          className="guide-btn-primary-lg search-register-inline"
+          onClick={() => {
+            setMyMatchupsOpen(false)
+            const willOpen = !searchRegisterOpen
+            if (willOpen && searched && !searchLoading && results.length === 0) {
+              setReg((r) => ({
+                ...r,
+                defense1: d1.trim(),
+                defense2: d2.trim(),
+                defense3: d3.trim(),
+              }))
+            }
+            setSearchRegisterOpen(willOpen)
+            setRegErr(null)
+            setRegMsg(null)
+          }}
+        >
+          {searchRegisterOpen ? '등록 닫기' : '공략 등록'}
+        </button>
+        <button
+          type="button"
+          className="guide-btn-primary-lg search-my-toggle"
+          onClick={() => {
+            setSearchRegisterOpen(false)
+            setMyMatchupsOpen((prev) => {
+              const next = !prev
+              if (next) void loadMyMatchups()
+              return next
+            })
+            setMyMatchupsErr(null)
+          }}
+        >
+          {myMatchupsOpen ? '내 공략 닫기' : '내가 등록한 공략'}
+        </button>
+      </div>
+      <button
+        type="button"
+        className="guide-btn-primary-lg search-submit-toggle"
+        disabled={searchLoading}
+        onClick={runSearch}
+      >
+        {searchLoading ? '검색 중…' : '검색'}
+      </button>
+      {searchRegisterOpen ? (
+        <div className="search-register-form">
+          <RegisterMatchupForm
+            idPrefix="search-reg"
+            reg={reg}
+            setReg={setReg}
+            heroOptions={heroOptions}
+            regSkillOptions={regSkillOptions}
+            regErr={regErr}
+            regMsg={regMsg}
+            regBusy={regBusy}
+            onSubmit={onRegister}
+          />
+        </div>
+      ) : null}
+    </section>
+  )
+
+  const renderResultList = (groups: MatchupGroup[], opts?: { dense?: boolean }) => (
+    <div className="match-list">
+      {groups.map((g) => {
+        const isEditing = g.strategies.some((s) => s.id === editingId)
+        const isSelected = g.groupId === selectedResultGroupId
+        const showDetail =
+          isEditing || (searchLayout === 'A' && isSelected && !opts?.dense)
+        return (
+          <div key={g.groupId} className="match-list-item">
+            <MatchupGroupListRow
+              group={g}
+              portraitUrlByKey={portraitUrlByKey}
+              isAdmin={isAdmin}
+              deleteBusyId={deleteBusyId}
+              onStartEdit={startEdit}
+              onDelete={deleteMatchup}
+              onVote={onVote}
+              selected={isSelected}
+              dense={opts?.dense}
+              onSelect={(group) =>
+                setSelectedResultGroupId((prev) =>
+                  prev === group.groupId ? null : group.groupId,
+                )
+              }
+            />
+            {showDetail ? (
+              <div className="match-list-expanded">
+                <MatchupGroupCard group={g} {...matchupCardProps} />
+              </div>
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <div
+      className={
+        railOpen
+          ? 'guide-shell guide-shell--compact'
+          : 'guide-shell guide-shell--compact guide-shell--rail-closed'
+      }
+    >
+      <button
+        type="button"
+        className="guide-rail-toggle"
+        aria-expanded={railOpen}
+        aria-controls="guide-rail"
+        onClick={() => setRailOpen((v) => !v)}
+      >
+        {railOpen ? '☰ 메뉴 닫기' : '☰ 메뉴'}
+      </button>
+
+      <aside
+        id="guide-rail"
+        className={railOpen ? 'guide-rail' : 'guide-rail guide-rail--closed'}
+        aria-label="사이드 메뉴"
+        hidden={!railOpen}
+      >
+        <div className="guide-rail-brand">
+          <BrandLogo className="guide-rail-logo" />
+          <div className="guide-rail-brand-text">
+            <span className="guide-rail-title">길드전 정답지</span>
+            <span className="guide-rail-sub">공략 도구</span>
+          </div>
+        </div>
+        <nav className="guide-rail-nav" aria-label="메인 메뉴">
+          {navBtn('search', '검색')}
+          {navBtn('stats', '통계')}
+          {navBtn('siege', '공성전')}
+          {navBtn('register', '등록')}
+          {navBtn('rank', '랭킹')}
+          {navBtn('admin', '관리')}
+        </nav>
+        <div className="guide-rail-foot">
+          <p className="guide-rail-user">
+            <strong>{profileName}</strong> 님
+          </p>
+          <button type="button" className="button-secondary guide-rail-logout" onClick={onLogout}>
             로그아웃
           </button>
         </div>
+      </aside>
 
-        <header className="guide-brand">
-          <BrandLogo />
-          <h1 className="guide-brand-title">길드전 정답지</h1>
-          <p className="guide-user">
-            👤 <strong>{profileName}</strong> 님
-          </p>
-        </header>
-
+      <div className="guide-main">
+        <div className="guide-inner">
         {nav === 'siege' && (
           <section className="guide-card siege-card" aria-labelledby="siege-h">
             <div className="siege-top">
@@ -1682,244 +1920,124 @@ export function GuideApp({ session, onLogout }: Props) {
               refreshKey={myVotesRefreshKey}
               defaultDateYmd={todayYmdSeoul()}
             />
-            <section className="guide-card" aria-label="검색">
-              <div className="guide-tabs-row">
-                <button type="button" className="guide-tab-big guide-tab-big--on" disabled>
-                  🛡️ 방어덱 기준
-                </button>
-              </div>
 
-              <p className="guide-section-label">
-                <span aria-hidden>🛡️</span> 상대 방어덱 영웅
-              </p>
-              <div className="guide-d3">
-                <AutocompleteField
-                  id="gd1"
-                  label="방어1"
-                  value={d1}
-                  onChange={setD1}
-                  options={heroOptions}
-                  placeholder="방어1"
-                  maxSuggestions={5}
-                  onEnterSubmit={runSearch}
-                />
-                <AutocompleteField
-                  id="gd2"
-                  label="방어2"
-                  value={d2}
-                  onChange={setD2}
-                  options={heroOptions}
-                  placeholder="방어2"
-                  maxSuggestions={5}
-                  onEnterSubmit={runSearch}
-                />
-                <AutocompleteField
-                  id="gd3"
-                  label="방어3"
-                  value={d3}
-                  onChange={setD3}
-                  options={heroOptions}
-                  placeholder="방어3"
-                  maxSuggestions={5}
-                  onEnterSubmit={runSearch}
-                />
-              </div>
-
-              <p className="guide-section-label">
-                <span aria-hidden>🚫</span> 제외할 공격 영웅
-              </p>
-              <p className="guide-notes" style={{ marginTop: 0, marginBottom: '0.45rem' }}>
-                승리·패배 클릭 시 해당 공략의 공격 영웅이 자동으로 추가됩니다. 한국시간 다음날
-                09:00에 초기화됩니다.
-              </p>
-              <div className="guide-exclude-row">
-                <input
-                  type="text"
-                  className="field-input"
-                  value={excludeInput}
-                  onChange={(e) => setExcludeInput(e.target.value)}
-                  placeholder="제외할 영웅 입력…"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addExclude()
-                    }
-                  }}
-                />
-                <button type="button" className="guide-btn-sm" onClick={addExclude}>
-                  추가
-                </button>
-              </div>
-              {excludeList.length > 0 && (
-                <ul className="guide-chip-list" aria-label="제외 목록">
-                  {excludeList.map((x) => (
-                    <li key={x} className="guide-chip">
-                      {x}
-                      <button
-                        type="button"
-                        aria-label={`${x} 제거`}
-                        onClick={() =>
-                          setExcludeList((p) => p.filter((y) => y !== x))
-                        }
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {searchHistory.length > 0 ? (
-                <div className="search-history-block">
-                  <p className="guide-section-label" style={{ marginBottom: '0.45rem' }}>
-                    최근 검색
-                  </p>
-                  <ul className="search-history-list" aria-label="최근 검색 목록">
-                    {searchHistory.map((item, idx) => (
-                      <li key={searchHistoryKey(item, idx)}>
+            {searchLayout === 'B' ? (
+              <div className="search-split">
+                <div className="search-split-left">
+                  <div className="search-split-left-top">{searchLayoutToggle}</div>
+                  {searchFormPanel}
+                </div>
+                <div className="search-split-right">
+                  {myMatchupsOpen ? (
+                    <section className="search-split-panel" aria-labelledby="my-matchups-h">
+                      <div className="my-matchups-head">
+                        <h2 id="my-matchups-h" className="guide-results-head" style={{ margin: 0 }}>
+                          내가 등록한 공략{' '}
+                          {myMatchupsLoading ? '…' : `${groupedMyMatchups.length}건`}
+                        </h2>
                         <button
                           type="button"
-                          className="search-history-btn"
-                          disabled={searchLoading}
-                          onClick={() => void runSearchWith(item)}
+                          className="guide-btn-ghost"
+                          disabled={myMatchupsLoading}
+                          onClick={() => void loadMyMatchups()}
                         >
-                          {formatSearchHistoryLabel(item)}
+                          {myMatchupsLoading ? '불러오는 중…' : '새로고침'}
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+                      </div>
+                      {myMatchupsErr ? (
+                        <p className="form-error" role="alert">
+                          {myMatchupsErr}
+                        </p>
+                      ) : null}
+                      {!myMatchupsLoading && myMatchups.length === 0 && !myMatchupsErr ? (
+                        <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                          아직 등록한 공략이 없습니다.
+                        </p>
+                      ) : null}
+                      {myMatchups.length > 0 ? renderResultList(groupedMyMatchups) : null}
+                    </section>
+                  ) : null}
 
-              {searchError && (
-                <p className="form-error" role="alert" style={{ marginBottom: 8 }}>
-                  {searchError}
-                </p>
-              )}
-              <div className="search-actions-row">
-                <button
-                  type="button"
-                  className="guide-btn-primary-lg search-register-inline"
-                  onClick={() => {
-                    setMyMatchupsOpen(false)
-                    const willOpen = !searchRegisterOpen
-                    if (
-                      willOpen &&
-                      searched &&
-                      !searchLoading &&
-                      results.length === 0
-                    ) {
-                      setReg((r) => ({
-                        ...r,
-                        defense1: d1.trim(),
-                        defense2: d2.trim(),
-                        defense3: d3.trim(),
-                      }))
-                    }
-                    setSearchRegisterOpen(willOpen)
-                    setRegErr(null)
-                    setRegMsg(null)
-                  }}
-                >
-                  {searchRegisterOpen ? '등록 닫기' : '공략 등록'}
-                </button>
-                <button
-                  type="button"
-                  className="guide-btn-primary-lg search-my-toggle"
-                  onClick={() => {
-                    setSearchRegisterOpen(false)
-                    setMyMatchupsOpen((prev) => {
-                      const next = !prev
-                      if (next) void loadMyMatchups()
-                      return next
-                    })
-                    setMyMatchupsErr(null)
-                  }}
-                >
-                  {myMatchupsOpen ? '내 공략 닫기' : '내가 등록한 공략'}
-                </button>
+                  {searched && !searchLoading ? (
+                    <section className="search-split-panel" aria-label="검색 결과">
+                      <h2 className="guide-results-head">
+                        검색 결과 {groupedResults.length}건
+                      </h2>
+                      {results.length === 0 ? (
+                        <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                          조건에 맞는 공략이 없습니다.
+                        </p>
+                      ) : (
+                        <>
+                          {selectedResultGroup ? (
+                            <div className="search-split-detail">
+                              <MatchupGroupCard
+                                group={selectedResultGroup}
+                                {...matchupCardProps}
+                              />
+                            </div>
+                          ) : null}
+                          {renderResultList(groupedResults, { dense: true })}
+                        </>
+                      )}
+                    </section>
+                  ) : (
+                    <p className="guide-placeholder">왼쪽에서 방어덱을 검색하세요.</p>
+                  )}
+                </div>
               </div>
-              <button
-                type="button"
-                className="guide-btn-primary-lg search-submit-toggle"
-                disabled={searchLoading}
-                onClick={runSearch}
-              >
-                {searchLoading ? '검색 중…' : '검색'}
-              </button>
-              {searchRegisterOpen ? (
-                <div className="search-register-form">
-                  <RegisterMatchupForm
-                    idPrefix="search-reg"
-                    reg={reg}
-                    setReg={setReg}
-                    heroOptions={heroOptions}
-                    regSkillOptions={regSkillOptions}
-                    regErr={regErr}
-                    regMsg={regMsg}
-                    regBusy={regBusy}
-                    onSubmit={onRegister}
-                  />
-                </div>
-              ) : null}
-            </section>
-
-            {myMatchupsOpen ? (
+            ) : (
               <>
-                <div className="my-matchups-head">
-                  <h2 id="my-matchups-h" className="guide-results-head" style={{ margin: 0 }}>
-                    내가 등록한 공략{' '}
-                    {myMatchupsLoading ? '…' : `${groupedMyMatchups.length}건`}
-                  </h2>
-                  <button
-                    type="button"
-                    className="guide-btn-ghost"
-                    disabled={myMatchupsLoading}
-                    onClick={() => void loadMyMatchups()}
-                  >
-                    {myMatchupsLoading ? '불러오는 중…' : '새로고침'}
-                  </button>
-                </div>
-                {myMatchupsErr ? (
-                  <p className="form-error" role="alert">
-                    {myMatchupsErr}
-                  </p>
-                ) : null}
-                {myMatchupsLoading ? (
-                  <p className="guide-placeholder" style={{ marginTop: 0 }}>
-                    불러오는 중…
-                  </p>
-                ) : null}
-                {!myMatchupsLoading && myMatchups.length === 0 && !myMatchupsErr ? (
-                  <p className="guide-placeholder" style={{ marginTop: 0 }}>
-                    아직 등록한 공략이 없습니다.
-                  </p>
-                ) : null}
-                {myMatchups.length > 0 ? (
-                  <div ref={myMatchupsMasonryRef} className="guide-masonry-results">
-                    {groupedMyMatchups.map((g) => (
-                      <MatchupGroupCard key={g.groupId} group={g} {...matchupCardProps} />
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            ) : null}
+                {searchFormPanel}
 
-            {searched && !searchLoading && (
-              <>
-                <h2 className="guide-results-head">
-                  검색 결과 {groupedResults.length}건
-                </h2>
-                {results.length === 0 ? (
-                  <p className="guide-placeholder" style={{ marginTop: 0 }}>
-                    조건에 맞는 공략이 없습니다.
-                  </p>
-                ) : (
-                  <div ref={searchMasonryRef} className="guide-masonry-results">
-                    {groupedResults.map((g) => (
-                      <MatchupGroupCard key={g.groupId} group={g} {...matchupCardProps} />
-                    ))}
-                  </div>
+                {myMatchupsOpen ? (
+                  <>
+                    <div className="my-matchups-head">
+                      <h2 id="my-matchups-h" className="guide-results-head" style={{ margin: 0 }}>
+                        내가 등록한 공략{' '}
+                        {myMatchupsLoading ? '…' : `${groupedMyMatchups.length}건`}
+                      </h2>
+                      <button
+                        type="button"
+                        className="guide-btn-ghost"
+                        disabled={myMatchupsLoading}
+                        onClick={() => void loadMyMatchups()}
+                      >
+                        {myMatchupsLoading ? '불러오는 중…' : '새로고침'}
+                      </button>
+                    </div>
+                    {myMatchupsErr ? (
+                      <p className="form-error" role="alert">
+                        {myMatchupsErr}
+                      </p>
+                    ) : null}
+                    {myMatchupsLoading ? (
+                      <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                        불러오는 중…
+                      </p>
+                    ) : null}
+                    {!myMatchupsLoading && myMatchups.length === 0 && !myMatchupsErr ? (
+                      <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                        아직 등록한 공략이 없습니다.
+                      </p>
+                    ) : null}
+                    {myMatchups.length > 0 ? renderResultList(groupedMyMatchups) : null}
+                  </>
+                ) : null}
+
+                {searched && !searchLoading && (
+                  <>
+                    <h2 className="guide-results-head">
+                      검색 결과 {groupedResults.length}건
+                    </h2>
+                    {results.length === 0 ? (
+                      <p className="guide-placeholder" style={{ marginTop: 0 }}>
+                        조건에 맞는 공략이 없습니다.
+                      </p>
+                    ) : (
+                      renderResultList(groupedResults)
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -2360,6 +2478,7 @@ export function GuideApp({ session, onLogout }: Props) {
             />
           </section>
         )}
+        </div>
       </div>
     </div>
   )

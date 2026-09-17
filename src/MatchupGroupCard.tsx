@@ -9,7 +9,7 @@ export type MatchupGroup = {
   strategies: MatchupRow[]
 }
 
-type Props = {
+export type MatchupGroupCardProps = {
   group: MatchupGroup
   portraitUrlByKey: Record<string, string>
   editingId: number | null
@@ -41,6 +41,8 @@ type Props = {
   onEditFormation3Change: (value: string) => void
   onEditNotesChange: (value: string) => void
 }
+
+type Props = MatchupGroupCardProps
 
 function formatDateYmdSeoul(iso: string): string {
   const t = Date.parse(iso)
