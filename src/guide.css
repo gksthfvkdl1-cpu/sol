@@ -687,30 +687,30 @@
   flex: 1;
   min-width: 0;
   /* VS/ATK/펫 줄 — 승률 배지 전까지 (스트립은 grid 로 N등분) */
-  --portrait-badge-w: 3.1rem;
-  --portrait-img: 4.35rem;
-  --portrait-strip-gap: 0.42rem;
-  --portrait-row-gap: 0.42rem;
+  --portrait-badge-w: 3.6rem;
+  --portrait-img: 5.6rem;
+  --portrait-strip-gap: 0.48rem;
+  --portrait-row-gap: 0.48rem;
 }
 
 .match-list-expanded .guide-match-lines {
-  --portrait-badge-w: 3.35rem;
-  --portrait-img: 5.1rem;
-  --portrait-strip-gap: 0.48rem;
-  --portrait-row-gap: 0.5rem;
+  --portrait-badge-w: 3.75rem;
+  --portrait-img: 6.4rem;
+  --portrait-strip-gap: 0.52rem;
+  --portrait-row-gap: 0.55rem;
 }
 
 .search-split-detail .guide-match-lines {
-  --portrait-badge-w: 3.35rem;
-  --portrait-img: 5.1rem;
-  --portrait-strip-gap: 0.48rem;
-  --portrait-row-gap: 0.5rem;
+  --portrait-badge-w: 3.75rem;
+  --portrait-img: 6.4rem;
+  --portrait-strip-gap: 0.52rem;
+  --portrait-row-gap: 0.55rem;
 }
 
 .match-list-row .guide-portrait-img,
 .match-list-row .guide-portrait-fallback {
-  width: 2.55rem;
-  height: 2.55rem;
+  width: 3.35rem;
+  height: 3.35rem;
 }
 
 .guide-line {
@@ -808,8 +808,9 @@
 }
 
 .guide-portrait-label {
-  font-size: 0.78rem;
-  color: #334155;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #1e293b;
   line-height: 1.25;
   text-align: center;
   word-break: keep-all;
@@ -1118,52 +1119,52 @@
 
 .guide-badge-vs {
   flex-shrink: 0;
-  padding: 0.1rem 0.35rem;
+  padding: 0.14rem 0.42rem;
   border-radius: 4px;
   background: #fee2e2;
   color: #b91c1c;
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: 0.84rem;
 }
 
 .guide-badge-atk {
   flex-shrink: 0;
-  padding: 0.1rem 0.35rem;
+  padding: 0.14rem 0.42rem;
   border-radius: 4px;
   background: #dcfce7;
   color: #15803d;
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: 0.84rem;
 }
 
 .guide-badge-pet {
   flex-shrink: 0;
-  padding: 0.1rem 0.35rem;
+  padding: 0.14rem 0.42rem;
   border-radius: 4px;
   background: #efe6c8;
   color: #8a7018;
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: 0.84rem;
 }
 
 .guide-badge-equipment {
   flex-shrink: 0;
-  padding: 0.1rem 0.35rem;
+  padding: 0.14rem 0.42rem;
   border-radius: 4px;
   background: #fef3c7;
   color: #b45309;
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: 0.84rem;
 }
 
 .guide-badge-formation {
   flex-shrink: 0;
-  padding: 0.1rem 0.35rem;
+  padding: 0.14rem 0.42rem;
   border-radius: 4px;
   background: #f3e8ff;
   color: #7e22ce;
   font-weight: 800;
-  font-size: 0.65rem;
+  font-size: 0.84rem;
 }
 
 .guide-rate-pill {
@@ -1182,8 +1183,9 @@
 }
 
 .guide-skill {
-  font-size: 0.8rem;
-  color: #475569;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
   margin: 0 0 0.5rem;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -2760,10 +2762,10 @@
 
 .match-list-tag {
   flex-shrink: 0;
-  font-size: 0.65rem;
+  font-size: 0.84rem;
   font-weight: 800;
-  color: #64748b;
-  width: 1.6rem;
+  color: #475569;
+  width: 1.9rem;
 }
 
 .match-list-tag--atk {
@@ -2780,11 +2782,16 @@
 .match-list-skill,
 .match-list-notes,
 .match-list-foot {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   color: #475569;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.match-list-skill {
+  font-weight: 800;
+  color: #1e293b;
 }
 
 .match-list-notes {
