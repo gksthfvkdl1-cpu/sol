@@ -604,11 +604,6 @@ export function GuideApp({ session, onLogout }: Props) {
     })
   }, [groupedResults, searchLayout])
 
-  const selectedResultGroup = useMemo(
-    () => groupedResults.find((g) => g.groupId === selectedResultGroupId) ?? null,
-    [groupedResults, selectedResultGroupId],
-  )
-
   const setSearchLayoutMode = (mode: SearchLayoutMode) => {
     setSearchLayout(mode)
     saveSearchLayout(session.userId, mode)
@@ -1656,7 +1651,11 @@ export function GuideApp({ session, onLogout }: Props) {
         const isEditing = g.strategies.some((s) => s.id === editingId)
         const isSelected = g.groupId === selectedResultGroupId
         const showDetail =
-          isEditing || (searchLayout === 'A' && isSelected && !opts?.dense)
+          isEditing ||
+          (isSelected &&
+            (searchLayout === 'A'
+              ? !opts?.dense
+              : searchLayout === 'B'))
         return (
           <div key={g.groupId} className="match-list-item">
             <MatchupGroupListRow
@@ -1968,17 +1967,7 @@ export function GuideApp({ session, onLogout }: Props) {
                           조건에 맞는 공략이 없습니다.
                         </p>
                       ) : (
-                        <>
-                          {selectedResultGroup ? (
-                            <div className="search-split-detail">
-                              <MatchupGroupCard
-                                group={selectedResultGroup}
-                                {...matchupCardProps}
-                              />
-                            </div>
-                          ) : null}
-                          {renderResultList(groupedResults, { dense: true })}
-                        </>
+                        renderResultList(groupedResults, { dense: true })
                       )}
                     </section>
                   ) : (
