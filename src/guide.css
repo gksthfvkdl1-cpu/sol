@@ -713,6 +713,30 @@
   height: 3.35rem;
 }
 
+/* PC: 검색 결과 초상화만 조금 축소 (모바일 크기 유지) */
+@media (min-width: 769px) {
+  .guide-match-lines {
+    --portrait-badge-w: 3.2rem;
+    --portrait-img: 4.5rem;
+    --portrait-strip-gap: 0.4rem;
+    --portrait-row-gap: 0.4rem;
+  }
+
+  .match-list-expanded .guide-match-lines,
+  .search-split-detail .guide-match-lines {
+    --portrait-badge-w: 3.35rem;
+    --portrait-img: 5rem;
+    --portrait-strip-gap: 0.45rem;
+    --portrait-row-gap: 0.45rem;
+  }
+
+  .match-list-row .guide-portrait-img,
+  .match-list-row .guide-portrait-fallback {
+    width: 2.8rem;
+    height: 2.8rem;
+  }
+}
+
 .guide-line {
   display: flex;
   align-items: baseline;
@@ -2796,6 +2820,11 @@
 
 .match-list-notes {
   color: #92400e;
+  white-space: pre-wrap;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .match-list-foot {
